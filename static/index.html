@@ -39,12 +39,7 @@
 
         <!-- Main Workspace Area -->
         <main class="workspace">
-            <!-- 5 Work Days Columns -->
             <section class="weekly-planner">
-                <div class="section-title">
-                    <h2>Upcoming Horizon</h2>
-                    <span class="subtext">Next 5 work days</span>
-                </div>
                 <div class="columns-grid" id="week-columns">
                     <!-- Dynamic column rendering -->
                 </div>
@@ -109,9 +104,11 @@
                 <div class="form-row">
                     <div class="form-group">
                         <label for="task-date">Scheduled Date</label>
-                        <select id="task-date">
-                            <!-- Populated dynamically: Backlog + 5 upcoming work days -->
-                        </select>
+                        <div class="date-input-container">
+                            <input type="date" id="task-date">
+                            <button type="button" class="btn btn-secondary" id="clear-date-btn" title="Move to backlog">Clear</button>
+                        </div>
+                        <span class="help-text">Leave blank to place task in the Backlog</span>
                     </div>
                 </div>
 

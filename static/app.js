@@ -24,7 +24,6 @@ const toastContainer = document.getElementById('toast-container');
 document.addEventListener('DOMContentLoaded', () => {
     calculateWorkdays();
     renderColumnsStructure();
-    populateDateDropdown();
     fetchTasks();
     setupEventListeners();
 });
@@ -43,17 +42,15 @@ function calculateWorkdays() {
             const day = String(current.getDate()).padStart(2, '0');
             const dateString = `${year}-${month}-${day}`;
             
-            // Format labels
-            let label = current.toLocaleDateString('en-US', { weekday: 'long' });
+            // Format labels (short form: Mon, Tue, etc.)
+            let label = current.toLocaleDateString('en-US', { weekday: 'short' });
             
-            // Special relative labels
+            // Special relative label for today
             const diffTime = current.setHours(0,0,0,0) - new Date().setHours(0,0,0,0);
             const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
             
             if (diffDays === 0) {
                 label = 'Today';
-            } else if (diffDays === 1) {
-                label = 'Tomorrow';
             }
 
             const subtext = current.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -78,11 +75,13 @@ function renderColumnsStructure() {
         col.id = `col-${day.dateString}`;
         col.innerHTML = `
             <div class="column-header">
-                <div class="column-day">
-                    <span>${day.label}</span>
+                <div class="column-title-row">
+                    <div class="column-label">
+                        <span class="column-day">${day.label}</span>
+                        <span class="column-date">${day.subtext}</span>
+                    </div>
                     <span class="column-task-count" id="count-${day.dateString}">0</span>
                 </div>
-                <div class="column-date">${day.subtext}</div>
             </div>
             <div class="column-cards" data-date="${day.dateString}"></div>
         `;
@@ -90,24 +89,6 @@ function renderColumnsStructure() {
     });
 }
 
-// Populate the due date select menu inside the modal
-function populateDateDropdown() {
-    taskDateSelect.innerHTML = '';
-    
-    // Backlog Option
-    const backlogOpt = document.createElement('option');
-    backlogOpt.value = '';
-    backlogOpt.textContent = 'Backlog (No specific date)';
-    taskDateSelect.appendChild(backlogOpt);
-    
-    // Workdays Options
-    workdays.forEach(day => {
-        const opt = document.createElement('option');
-        opt.value = day.dateString;
-        opt.textContent = `${day.label} (${day.subtext})`;
-        taskDateSelect.appendChild(opt);
-    });
-}
 
 // API: Fetch tasks from backend
 async function fetchTasks() {
@@ -133,12 +114,22 @@ function renderTasks() {
     workdays.forEach(d => grouped[d.dateString] = []);
     grouped['backlog'] = [];
 
-    // Categorize tasks
+    // Categorize tasks (including overdue ones into today's column)
+    const todayDateString = workdays[0].dateString;
     tasks.forEach(task => {
-        if (task.due_date && grouped[task.due_date]) {
-            grouped[task.due_date].push(task);
+        if (task.due_date) {
+            if (grouped[task.due_date]) {
+                // Matches one of the 5 upcoming workdays
+                grouped[task.due_date].push(task);
+            } else if (task.due_date < todayDateString) {
+                // Overdue task -> Place in Today's column
+                grouped[todayDateString].push(task);
+            } else {
+                // Future date outside the 5-day horizon -> Place in Backlog
+                grouped['backlog'].push(task);
+            }
         } else {
-            // Task has no date or date is not in the upcoming 5 days
+            // No due date -> Place in Backlog
             grouped['backlog'].push(task);
         }
     });
@@ -188,37 +179,49 @@ function createCardElement(task) {
     const descText = task.description || '';
     const descHtml = descText ? `<div class="card-desc">${escapeHTML(descText)}</div>` : '';
     
-    // Due date label (only show on backlog items that have a due date in the future)
-    let footerDate = '';
-    if (!task.due_date) {
-        footerDate = 'Backlog';
-    } else {
-        // If it matches one of the columns, we don't need a date badge on it (implied by column)
+    // Due date label (show "Overdue", specific date, or nothing)
+    const todayDateString = workdays[0].dateString;
+    const isOverdue = task.due_date && task.due_date < todayDateString && !task.completed;
+    
+    let dateBadge = '';
+    if (isOverdue) {
+        const d = new Date(task.due_date);
+        const dateFormatted = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        dateBadge = `
+            <div class="card-date-badge overdue">
+                <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polyline points="12 6 12 12 16 14"></polyline>
+                </svg>
+                <span>Overdue: ${dateFormatted}</span>
+            </div>
+        `;
+    } else if (task.due_date) {
+        // If it's scheduled for a day inside our columns, and not overdue, we omit the badge (column headers represent it)
         const inColumns = workdays.some(w => w.dateString === task.due_date);
         if (!inColumns) {
-            // It has a future date, format it nicely
             const d = new Date(task.due_date);
-            footerDate = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            const dateFormatted = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            dateBadge = `
+                <div class="card-date-badge">
+                    <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                        <line x1="16" y1="2" x2="16" y2="6"></line>
+                        <line x1="8" y1="2" x2="8" y2="6"></line>
+                        <line x1="3" y1="10" x2="21" y2="10"></line>
+                    </svg>
+                    <span>${dateFormatted}</span>
+                </div>
+            `;
         }
     }
-
-    const dateBadge = footerDate ? `
-        <div class="card-date-badge">
-            <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-                <line x1="16" y1="2" x2="16" y2="6"></line>
-                <line x1="8" y1="2" x2="8" y2="6"></line>
-                <line x1="3" y1="10" x2="21" y2="10"></line>
-            </svg>
-            <span>${footerDate}</span>
-        </div>
-    ` : '';
 
     card.innerHTML = `
         <div class="card-header">
             <div class="card-title-container">
                 <input type="checkbox" class="card-checkbox" ${task.completed ? 'checked' : ''}>
                 <span class="card-title">${escapeHTML(task.title)}</span>
+                ${dateBadge}
             </div>
             <div class="card-actions">
                 <button class="action-btn edit-btn" title="Edit task">
@@ -238,9 +241,6 @@ function createCardElement(task) {
             </div>
         </div>
         ${descHtml}
-        <div class="card-footer">
-            ${dateBadge}
-        </div>
     `;
 
     // Event Checkbox Toggle
@@ -439,9 +439,22 @@ async function saveReorderedState() {
     // 2. Scan the Backlog
     const backlogCards = [...backlogTasksContainer.children];
     backlogCards.forEach((card, index) => {
+        const taskId = card.dataset.id;
+        const existingTask = tasks.find(t => t.id === taskId);
+        let targetDueDate = null;
+        
+        if (existingTask) {
+            // Check if it was previously scheduled in the 5-day horizon
+            const wasScheduledInHorizon = existingTask.due_date && workdays.some(w => w.dateString === existingTask.due_date);
+            if (!wasScheduledInHorizon) {
+                // If it was already in the backlog (either null or a future date), preserve its due date
+                targetDueDate = existingTask.due_date;
+            }
+        }
+        
         updates.push({
-            id: card.dataset.id,
-            due_date: null,
+            id: taskId,
+            due_date: targetDueDate,
             position: index
         });
     });
@@ -485,9 +498,7 @@ function openModal(task = null) {
         taskTitleInput.value = task.title;
         taskDescInput.value = task.description || '';
         
-        // Check if due date is in columns, else default to backlog
-        const isScheduled = task.due_date && workdays.some(w => w.dateString === task.due_date);
-        taskDateSelect.value = isScheduled ? task.due_date : '';
+        taskDateSelect.value = task.due_date || '';
     } else {
         // Add mode
         modalTitle.textContent = 'Create Task';
@@ -570,6 +581,12 @@ function setupEventListeners() {
     addBtn.addEventListener('click', () => openModal());
     modalCloseBtn.addEventListener('click', closeModal);
     modalCancelBtn.addEventListener('click', closeModal);
+    
+    // Clear date button
+    const clearDateBtn = document.getElementById('clear-date-btn');
+    clearDateBtn.addEventListener('click', () => {
+        taskDateSelect.value = '';
+    });
     
     // Close modal when clicking on overlay background
     taskModal.addEventListener('click', (e) => {
