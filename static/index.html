@@ -123,6 +123,9 @@
                         </div>
                         <div class="archive-items" id="archive-items-container">
                         </div>
+                        <div id="archive-load-more-container" style="display: none; justify-content: center; margin-top: 1rem;">
+                            <button id="btn-load-more-archive" class="btn btn-secondary" style="font-size: 0.80rem; padding: 0.4rem 1rem;">Load More</button>
+                        </div>
                     </div>
                 </section>
 
@@ -140,6 +143,9 @@
                             <span>Deleted tasks will be saved here.</span>
                         </div>
                         <div class="archive-items" id="deleted-items-container">
+                        </div>
+                        <div id="deleted-load-more-container" style="display: none; justify-content: center; margin-top: 1rem;">
+                            <button id="btn-load-more-deleted" class="btn btn-secondary" style="font-size: 0.80rem; padding: 0.4rem 1rem;">Load More</button>
                         </div>
                     </div>
                 </section>
@@ -178,6 +184,8 @@
                         <div class="date-input-container">
                             <input type="date" id="task-date">
                             <button type="button" class="btn btn-secondary" id="clear-date-btn" title="Move to backlog">Clear</button>
+                        </div>
+                        <div class="quick-dates">
                         </div>
                         <span class="help-text">Leave blank to place task in the Backlog</span>
                     </div>

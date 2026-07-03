@@ -409,8 +409,10 @@ body {
 .card-title-container {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    flex-wrap: wrap;
+    gap: 0.25rem 0.5rem;
     flex-grow: 1;
+    min-width: 0;
 }
 
 .card-checkbox {
@@ -517,6 +519,7 @@ body {
     flex-shrink: 0;
     font-size: 0.7rem;
     line-height: 1;
+    white-space: nowrap;
 }
 
 .card-date-badge.overdue {
@@ -934,4 +937,36 @@ textarea {
     background: rgba(239, 68, 68, 0.2);
     border-color: rgba(239, 68, 68, 0.35);
     color: #ef4444;
+}
+
+/* Quick Date Selectors */
+.quick-dates {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.btn-quick-date {
+    font-family: var(--font-sans);
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border-color);
+    padding: 0.3rem 0.75rem;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.btn-quick-date:hover {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.08);
+    border-color: var(--border-color-hover);
+}
+
+.btn-quick-date.active {
+    color: var(--text-primary);
+    background: rgba(99, 102, 241, 0.12);
+    border-color: rgba(99, 102, 241, 0.25);
 }

@@ -32,10 +32,16 @@ const deletedItemsContainer = document.getElementById('deleted-items-container')
 const deletedEmptyMsg = document.getElementById('deleted-empty-msg');
 const toggleCompletedBtn = document.getElementById('toggle-completed-btn');
 
+// Pagination state
+let archiveOffset = 0;
+let deletedOffset = 0;
+const PAGE_SIZE = 50;
+
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
     calculateWorkdays();
     renderColumnsStructure();
+    renderQuickDateButtons();
     
     // Set up toggle initial state
     if (showCompleted) {
@@ -136,19 +142,24 @@ function renderTasks() {
     const todayDateString = workdays[0].dateString;
     const filteredTasks = showCompleted ? tasks : tasks.filter(t => !t.completed);
     filteredTasks.forEach(task => {
+        if (task.completed) {
+            // Completed tasks: only show on the board if they match one of the 5 workdays
+            if (task.due_date && grouped[task.due_date]) {
+                grouped[task.due_date].push(task);
+            }
+            return;
+        }
+
+        // Active tasks categorization
         if (task.due_date) {
             if (grouped[task.due_date]) {
-                // Matches one of the 5 upcoming workdays
                 grouped[task.due_date].push(task);
             } else if (task.due_date < todayDateString) {
-                // Overdue task -> Place in Today's column
                 grouped[todayDateString].push(task);
             } else {
-                // Future date outside the 5-day horizon -> Place in Backlog
                 grouped['backlog'].push(task);
             }
         } else {
-            // No due date -> Place in Backlog
             grouped['backlog'].push(task);
         }
     });
@@ -508,7 +519,6 @@ async function saveReorderedState() {
         
         // Re-render to update counters, dates labels, etc.
         renderTasks();
-        showToast('Layout updated.');
     } catch (err) {
         showToast(err.message, 'error');
         // Reload tasks from API to revert to server state
@@ -534,12 +544,61 @@ function openModal(task = null) {
         taskDateSelect.value = ''; // Default to backlog
     }
     
+    updateQuickDateActiveHighlight();
     taskModal.classList.add('active');
     taskTitleInput.focus();
 }
 
 function closeModal() {
     taskModal.classList.remove('active');
+}
+
+// Quick Date Helpers
+function getLocalDateString(offsetDays = 0) {
+    const d = new Date();
+    d.setDate(d.getDate() + offsetDays);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+}
+
+function renderQuickDateButtons() {
+    const quickDatesContainer = document.querySelector('.quick-dates');
+    if (!quickDatesContainer) return;
+    
+    quickDatesContainer.innerHTML = '';
+    
+    const todayStr = getLocalDateString(0);
+    const tomorrowStr = getLocalDateString(1);
+    
+    workdays.forEach(day => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn-quick-date';
+        btn.setAttribute('data-date', day.dateString);
+        
+        let label = day.label;
+        if (day.dateString === todayStr) {
+            label = 'Today';
+        } else if (day.dateString === tomorrowStr) {
+            label = 'Tomorrow';
+        }
+        
+        btn.textContent = label;
+        quickDatesContainer.appendChild(btn);
+    });
+}
+
+function updateQuickDateActiveHighlight() {
+    const dateVal = taskDateSelect.value;
+    document.querySelectorAll('.btn-quick-date').forEach(btn => {
+        if (btn.getAttribute('data-date') === dateVal) {
+            btn.classList.add('active');
+        } else {
+            btn.classList.remove('active');
+        }
+    });
 }
 
 // Save form handler (Add / Edit)
@@ -613,7 +672,22 @@ function setupEventListeners() {
     const clearDateBtn = document.getElementById('clear-date-btn');
     clearDateBtn.addEventListener('click', () => {
         taskDateSelect.value = '';
+        updateQuickDateActiveHighlight();
     });
+
+    // Quick date button selectors (via event delegation)
+    const quickDatesContainer = document.querySelector('.quick-dates');
+    if (quickDatesContainer) {
+        quickDatesContainer.addEventListener('click', (e) => {
+            const btn = e.target.closest('.btn-quick-date');
+            if (!btn) return;
+            taskDateSelect.value = btn.getAttribute('data-date') || '';
+            updateQuickDateActiveHighlight();
+        });
+    }
+
+    // Synchronize custom date picker manual input changes
+    taskDateSelect.addEventListener('input', updateQuickDateActiveHighlight);
     
     // Toggle completed state button click
     toggleCompletedBtn.addEventListener('click', () => {
@@ -630,6 +704,16 @@ function setupEventListeners() {
     // Tab switching
     tabPlanner.addEventListener('click', () => switchTab('planner'));
     tabArchive.addEventListener('click', () => switchTab('archive'));
+
+    // Load more buttons
+    document.getElementById('btn-load-more-archive').addEventListener('click', async () => {
+        archiveOffset += PAGE_SIZE;
+        await fetchArchivedTasks(false);
+    });
+    document.getElementById('btn-load-more-deleted').addEventListener('click', async () => {
+        deletedOffset += PAGE_SIZE;
+        await fetchDeletedTasks(false);
+    });
     
     // Close modal when clicking on overlay background
     taskModal.addEventListener('click', (e) => {
@@ -656,26 +740,39 @@ async function switchTab(tabId) {
         tabArchive.classList.add('active');
         viewPlanner.classList.remove('active');
         viewArchive.classList.add('active');
-        await fetchArchivedTasks();
-        await fetchDeletedTasks();
+        await fetchArchivedTasks(true);
+        await fetchDeletedTasks(true);
     }
 }
 
 // Archive Functions
-async function fetchArchivedTasks() {
+async function fetchArchivedTasks(replace = false) {
     try {
-        const res = await fetch('/api/tasks/archive');
+        if (replace) {
+            archiveOffset = 0;
+        }
+        const res = await fetch(`/api/tasks/archive?limit=${PAGE_SIZE}&offset=${archiveOffset}`);
         if (!res.ok) throw new Error('Failed to load archive');
-        const archivedTasks = await res.json();
-        renderArchivedTasks(archivedTasks);
+        const data = await res.json();
+        
+        renderArchivedTasks(data.tasks, !replace);
+        
+        const loadMoreContainer = document.getElementById('archive-load-more-container');
+        if (data.has_more) {
+            loadMoreContainer.style.display = 'flex';
+        } else {
+            loadMoreContainer.style.display = 'none';
+        }
     } catch (err) {
         showToast(err.message, 'error');
     }
 }
 
-function renderArchivedTasks(archivedTasks) {
-    archiveItemsContainer.innerHTML = '';
-    if (archivedTasks.length === 0) {
+function renderArchivedTasks(archivedTasks, append = false) {
+    if (!append) {
+        archiveItemsContainer.innerHTML = '';
+    }
+    if (archivedTasks.length === 0 && !append) {
         archiveEmptyMsg.style.display = 'flex';
         return;
     }
@@ -697,7 +794,7 @@ function renderArchivedTasks(archivedTasks) {
                 const day = dCompleted.getDate();
                 const hours = String(dCompleted.getHours()).padStart(2, '0');
                 const minutes = String(dCompleted.getMinutes()).padStart(2, '0');
-                completedDateFormatted = `${month} ${day} ${hours}:${minutes}`;
+                completedDateFormatted = `${month} ${day}, ${hours}:${minutes}`;
             }
         }
         
@@ -743,28 +840,41 @@ async function restoreArchivedTask(id) {
         
         showToast('Task restored to workspace.');
         await fetchTasks();
-        await fetchArchivedTasks();
-        await fetchDeletedTasks();
+        await fetchArchivedTasks(true);
+        await fetchDeletedTasks(true);
     } catch (err) {
         showToast(err.message, 'error');
     }
 }
 
 // Deleted (Trash) Functions
-async function fetchDeletedTasks() {
+async function fetchDeletedTasks(replace = false) {
     try {
-        const res = await fetch('/api/tasks/deleted');
+        if (replace) {
+            deletedOffset = 0;
+        }
+        const res = await fetch(`/api/tasks/deleted?limit=${PAGE_SIZE}&offset=${deletedOffset}`);
         if (!res.ok) throw new Error('Failed to load trash');
-        const deletedTasks = await res.json();
-        renderDeletedTasks(deletedTasks);
+        const data = await res.json();
+        
+        renderDeletedTasks(data.tasks, !replace);
+        
+        const loadMoreContainer = document.getElementById('deleted-load-more-container');
+        if (data.has_more) {
+            loadMoreContainer.style.display = 'flex';
+        } else {
+            loadMoreContainer.style.display = 'none';
+        }
     } catch (err) {
         showToast(err.message, 'error');
     }
 }
 
-function renderDeletedTasks(deletedTasks) {
-    deletedItemsContainer.innerHTML = '';
-    if (deletedTasks.length === 0) {
+function renderDeletedTasks(deletedTasks, append = false) {
+    if (!append) {
+        deletedItemsContainer.innerHTML = '';
+    }
+    if (deletedTasks.length === 0 && !append) {
         deletedEmptyMsg.style.display = 'flex';
         return;
     }
@@ -786,7 +896,7 @@ function renderDeletedTasks(deletedTasks) {
                 const day = dDeleted.getDate();
                 const hours = String(dDeleted.getHours()).padStart(2, '0');
                 const minutes = String(dDeleted.getMinutes()).padStart(2, '0');
-                deletedDateFormatted = `${month} ${day} ${hours}:${minutes}`;
+                deletedDateFormatted = `${month} ${day}, ${hours}:${minutes}`;
             }
         }
         
@@ -840,8 +950,8 @@ async function restoreDeletedTask(id) {
         
         showToast('Task restored to workspace.');
         await fetchTasks();
-        await fetchArchivedTasks();
-        await fetchDeletedTasks();
+        await fetchArchivedTasks(true);
+        await fetchDeletedTasks(true);
     } catch (err) {
         showToast(err.message, 'error');
     }
@@ -855,8 +965,8 @@ async function deletePermanently(id) {
         if (!res.ok) throw new Error('Failed to delete task permanently');
         
         showToast('Task permanently deleted.');
-        await fetchArchivedTasks();
-        await fetchDeletedTasks();
+        await fetchArchivedTasks(true);
+        await fetchDeletedTasks(true);
     } catch (err) {
         showToast(err.message, 'error');
     }

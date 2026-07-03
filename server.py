@@ -142,32 +142,40 @@ def get_tasks():
     return [dict(r) for r in rows]
 
 @app.get("/api/tasks/archive")
-def get_archived_tasks():
-    # Return all completed tasks (not deleted)
+def get_archived_tasks(limit: int = 50, offset: int = 0):
+    # Return paginated completed tasks (not deleted)
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("""
         SELECT * FROM tasks 
         WHERE completed = 1 AND deleted_at IS NULL
         ORDER BY completed_at DESC
-    """)
+        LIMIT ? OFFSET ?
+    """, (limit + 1, offset))
     rows = cursor.fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+    
+    has_more = len(rows) > limit
+    tasks = [dict(r) for r in rows[:limit]]
+    return {"tasks": tasks, "has_more": has_more}
 
 @app.get("/api/tasks/deleted")
-def get_deleted_tasks():
-    # Return all soft-deleted tasks
+def get_deleted_tasks(limit: int = 50, offset: int = 0):
+    # Return paginated soft-deleted tasks
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("""
         SELECT * FROM tasks 
         WHERE deleted_at IS NOT NULL
         ORDER BY deleted_at DESC
-    """)
+        LIMIT ? OFFSET ?
+    """, (limit + 1, offset))
     rows = cursor.fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+    
+    has_more = len(rows) > limit
+    tasks = [dict(r) for r in rows[:limit]]
+    return {"tasks": tasks, "has_more": has_more}
 
 @app.post("/api/tasks")
 def create_task(task: TaskCreate):
