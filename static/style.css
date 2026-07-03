@@ -1223,3 +1223,78 @@ textarea {
     background: rgba(255, 255, 255, 0.06);
 }
 
+/* Search View */
+.search-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+}
+
+.search-input-wrapper {
+    position: relative;
+    flex-grow: 1;
+}
+
+.search-input-wrapper svg {
+    position: absolute;
+    left: 0.85rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+    pointer-events: none;
+}
+
+#search-input {
+    width: 100%;
+    padding: 0.7rem 0.9rem 0.7rem 2.6rem;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-size: 0.95rem;
+    outline: none;
+    transition: all var(--transition-fast);
+}
+
+#search-input:focus {
+    border-color: var(--purple-accent);
+    background: rgba(255, 255, 255, 0.06);
+}
+
+#search-include-done-btn {
+    flex-shrink: 0;
+}
+
+.search-item-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-shrink: 0;
+}
+
+.archive-item:hover .card-actions {
+    opacity: 1;
+}
+
+.search-status-pill {
+    align-self: center;
+    flex-shrink: 0;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 0.2rem 0.55rem;
+    border-radius: var(--radius-sm);
+}
+
+.search-status-pill.done {
+    background: rgba(16, 185, 129, 0.15);
+    color: #10b981;
+}
+
+.search-status-pill.open {
+    background: rgba(59, 130, 246, 0.15);
+    color: #3b82f6;
+}
+

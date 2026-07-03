@@ -197,6 +197,42 @@ def get_tasks():
     conn.close()
     return [dict(r) for r in rows]
 
+def _like_escape(term: str) -> str:
+    # Escape LIKE wildcards so a search term is matched literally.
+    return term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+@app.get("/api/tasks/search")
+def search_tasks(q: str = "", include_done: bool = True, limit: int = 100):
+    # Each whitespace-separated word must appear in the title or description
+    # (case-insensitive). Deleted tasks are never returned.
+    words = q.split()
+    if not words:
+        return {"tasks": []}
+
+    clauses = ["deleted_at IS NULL"]
+    params: list = []
+    if not include_done:
+        clauses.append("completed = 0")
+    for word in words:
+        clauses.append("(LOWER(title) LIKE ? ESCAPE '\\' OR LOWER(description) LIKE ? ESCAPE '\\')")
+        like = f"%{_like_escape(word.lower())}%"
+        params.extend([like, like])
+
+    query = f"""
+        SELECT * FROM tasks
+        WHERE {' AND '.join(clauses)}
+        ORDER BY COALESCE(completed_at, created_at) DESC
+        LIMIT ?
+    """
+    params.append(limit)
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(query, params)
+    rows = cursor.fetchall()
+    conn.close()
+    return {"tasks": [dict(r) for r in rows]}
+
 @app.get("/api/tasks/archive")
 def get_archived_tasks(limit: int = 50, offset: int = 0):
     # Return paginated completed tasks (not deleted)

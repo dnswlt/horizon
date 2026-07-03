@@ -32,6 +32,14 @@ const deletedItemsContainer = document.getElementById('deleted-items-container')
 const deletedEmptyMsg = document.getElementById('deleted-empty-msg');
 const toggleCompletedBtn = document.getElementById('toggle-completed-btn');
 
+// Search Elements
+const tabSearch = document.getElementById('tab-search');
+const viewSearch = document.getElementById('view-search');
+const searchInput = document.getElementById('search-input');
+const searchIncludeDoneBtn = document.getElementById('search-include-done-btn');
+const searchItemsContainer = document.getElementById('search-items-container');
+const searchEmptyMsg = document.getElementById('search-empty-msg');
+
 // Pagination state
 let archiveOffset = 0;
 let deletedOffset = 0;
@@ -39,6 +47,10 @@ const PAGE_SIZE = 50;
 
 // Color selection state
 let selectedColor = null;
+
+// Search state
+let searchIncludeDone = true;
+let searchTimer = null;
 
 // Color labels state (defaults; overwritten by server values on load)
 let colorLabels = {
@@ -743,6 +755,10 @@ taskForm.addEventListener('submit', async (e) => {
         
         closeModal();
         fetchTasks();
+        // Keep search results in sync when editing from the Search tab
+        if (viewSearch.classList.contains('active')) {
+            performSearch();
+        }
     } catch (err) {
         showToast(err.message, 'error');
     }
@@ -837,6 +853,24 @@ function setupEventListeners() {
     // Tab switching
     tabPlanner.addEventListener('click', () => switchTab('planner'));
     tabArchive.addEventListener('click', () => switchTab('archive'));
+    tabSearch.addEventListener('click', () => switchTab('search'));
+
+    // Search
+    searchInput.addEventListener('input', () => {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(performSearch, 250);
+    });
+    searchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            clearTimeout(searchTimer);
+            performSearch();
+        }
+    });
+    searchIncludeDoneBtn.addEventListener('click', () => {
+        searchIncludeDone = !searchIncludeDone;
+        searchIncludeDoneBtn.classList.toggle('active', searchIncludeDone);
+        performSearch();
+    });
 
     // Load more buttons
     document.getElementById('btn-load-more-archive').addEventListener('click', async () => {
@@ -863,18 +897,19 @@ function setupEventListeners() {
 
 // Tab Switching logic
 async function switchTab(tabId) {
-    if (tabId === 'planner') {
-        tabPlanner.classList.add('active');
-        tabArchive.classList.remove('active');
-        viewPlanner.classList.add('active');
-        viewArchive.classList.remove('active');
-    } else if (tabId === 'archive') {
-        tabPlanner.classList.remove('active');
-        tabArchive.classList.add('active');
-        viewPlanner.classList.remove('active');
-        viewArchive.classList.add('active');
+    const tabs = { planner: tabPlanner, archive: tabArchive, search: tabSearch };
+    const views = { planner: viewPlanner, archive: viewArchive, search: viewSearch };
+    Object.keys(tabs).forEach(id => {
+        tabs[id].classList.toggle('active', id === tabId);
+        views[id].classList.toggle('active', id === tabId);
+    });
+
+    if (tabId === 'archive') {
         await fetchArchivedTasks(true);
         await fetchDeletedTasks(true);
+    } else if (tabId === 'search') {
+        searchInput.focus();
+        performSearch();
     }
 }
 
@@ -899,6 +934,112 @@ async function fetchArchivedTasks(replace = false) {
     } catch (err) {
         showToast(err.message, 'error');
     }
+}
+
+// Format a UTC completed_at string into a short local "Mon D, HH:MM"
+function formatDoneDate(completedAt) {
+    if (!completedAt) return 'recently';
+    let dateStr = completedAt;
+    if (!dateStr.includes('T')) {
+        dateStr = dateStr.replace(' ', 'T') + 'Z';
+    }
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return 'recently';
+    const month = d.toLocaleDateString('en-US', { month: 'short' });
+    const day = d.getDate();
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    return `${month} ${day}, ${hours}:${minutes}`;
+}
+
+// Search Functions
+async function performSearch() {
+    const q = searchInput.value.trim();
+    if (!q) {
+        searchItemsContainer.innerHTML = '';
+        searchEmptyMsg.style.display = 'flex';
+        return;
+    }
+    try {
+        const params = new URLSearchParams({ q, include_done: searchIncludeDone });
+        const res = await fetch(`/api/tasks/search?${params}`);
+        if (!res.ok) throw new Error('Search failed');
+        const data = await res.json();
+        renderSearchResults(data.tasks);
+    } catch (err) {
+        showToast(err.message, 'error');
+    }
+}
+
+function renderSearchResults(results) {
+    searchItemsContainer.innerHTML = '';
+    if (results.length === 0) {
+        searchEmptyMsg.style.display = 'flex';
+        return;
+    }
+    searchEmptyMsg.style.display = 'none';
+
+    results.forEach(task => {
+        const item = document.createElement('div');
+        item.className = `archive-item ${task.color ? 'color-' + task.color : ''}`;
+
+        const descHtml = task.description ? `<p class="archive-item-desc">${escapeHTML(task.description)}</p>` : '';
+
+        const metaParts = [];
+        if (task.completed) {
+            metaParts.push(`<span>Done: ${formatDoneDate(task.completed_at)}</span>`);
+        }
+        if (task.due_date) {
+            const dDue = new Date(task.due_date);
+            metaParts.push(`<span>Due: ${dDue.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>`);
+        }
+
+        const statusPill = task.completed
+            ? `<span class="search-status-pill done">Done</span>`
+            : `<span class="search-status-pill open">Open</span>`;
+
+        item.innerHTML = `
+            <div class="archive-item-info">
+                <span class="archive-item-title">${escapeHTML(task.title)}</span>
+                ${descHtml}
+                <div class="archive-item-meta">${metaParts.join('')}</div>
+            </div>
+            <div class="search-item-actions">
+                ${statusPill}
+                <div class="card-actions">
+                    <button class="action-btn edit-btn" title="Edit task">
+                        <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                            <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                        </svg>
+                    </button>
+                    <button class="action-btn delete-btn" title="Delete task">
+                        <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                            <line x1="10" y1="11" x2="10" y2="17"></line>
+                            <line x1="14" y1="11" x2="14" y2="17"></line>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        `;
+
+        item.querySelector('.edit-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            openModal(task);
+        });
+
+        item.querySelector('.delete-btn').addEventListener('click', async (e) => {
+            e.stopPropagation();
+            if (confirm('Are you sure you want to delete this task?')) {
+                await deleteTask(task.id);
+                performSearch();
+            }
+        });
+
+        searchItemsContainer.appendChild(item);
+    });
 }
 
 function renderArchivedTasks(archivedTasks, append = false) {
