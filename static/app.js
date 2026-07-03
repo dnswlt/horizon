@@ -1,6 +1,7 @@
 // App State
 let tasks = [];
 let workdays = [];
+let showCompleted = localStorage.getItem('showCompleted') === 'true';
 
 // DOM Elements
 const weekColumnsContainer = document.getElementById('week-columns');
@@ -20,10 +21,25 @@ const modalCloseBtn = document.getElementById('modal-close-btn');
 const modalCancelBtn = document.getElementById('modal-cancel-btn');
 const toastContainer = document.getElementById('toast-container');
 
+// Tab Elements
+const tabPlanner = document.getElementById('tab-planner');
+const tabArchive = document.getElementById('tab-archive');
+const viewPlanner = document.getElementById('view-planner');
+const viewArchive = document.getElementById('view-archive');
+const archiveItemsContainer = document.getElementById('archive-items-container');
+const archiveEmptyMsg = document.getElementById('archive-empty-msg');
+const toggleCompletedBtn = document.getElementById('toggle-completed-btn');
+
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
     calculateWorkdays();
     renderColumnsStructure();
+    
+    // Set up toggle initial state
+    if (showCompleted) {
+        toggleCompletedBtn.classList.add('active');
+    }
+    
     fetchTasks();
     setupEventListeners();
 });
@@ -116,7 +132,8 @@ function renderTasks() {
 
     // Categorize tasks (including overdue ones into today's column)
     const todayDateString = workdays[0].dateString;
-    tasks.forEach(task => {
+    const filteredTasks = showCompleted ? tasks : tasks.filter(t => !t.completed);
+    filteredTasks.forEach(task => {
         if (task.due_date) {
             if (grouped[task.due_date]) {
                 // Matches one of the 5 upcoming workdays
@@ -588,6 +605,22 @@ function setupEventListeners() {
         taskDateSelect.value = '';
     });
     
+    // Toggle completed state button click
+    toggleCompletedBtn.addEventListener('click', () => {
+        showCompleted = !showCompleted;
+        localStorage.setItem('showCompleted', showCompleted);
+        if (showCompleted) {
+            toggleCompletedBtn.classList.add('active');
+        } else {
+            toggleCompletedBtn.classList.remove('active');
+        }
+        renderTasks();
+    });
+    
+    // Tab switching
+    tabPlanner.addEventListener('click', () => switchTab('planner'));
+    tabArchive.addEventListener('click', () => switchTab('archive'));
+    
     // Close modal when clicking on overlay background
     taskModal.addEventListener('click', (e) => {
         if (e.target === taskModal) closeModal();
@@ -600,6 +633,111 @@ function setupEventListeners() {
         }
     });
 }
+
+// Tab Switching logic
+async function switchTab(tabId) {
+    if (tabId === 'planner') {
+        tabPlanner.classList.add('active');
+        tabArchive.classList.remove('active');
+        viewPlanner.classList.add('active');
+        viewArchive.classList.remove('active');
+    } else if (tabId === 'archive') {
+        tabPlanner.classList.remove('active');
+        tabArchive.classList.add('active');
+        viewPlanner.classList.remove('active');
+        viewArchive.classList.add('active');
+        await fetchArchivedTasks();
+    }
+}
+
+// Archive Functions
+async function fetchArchivedTasks() {
+    try {
+        const res = await fetch('/api/tasks/archive');
+        if (!res.ok) throw new Error('Failed to load archive');
+        const archivedTasks = await res.json();
+        renderArchivedTasks(archivedTasks);
+    } catch (err) {
+        showToast(err.message, 'error');
+    }
+}
+
+function renderArchivedTasks(archivedTasks) {
+    archiveItemsContainer.innerHTML = '';
+    if (archivedTasks.length === 0) {
+        archiveEmptyMsg.style.display = 'flex';
+        return;
+    }
+    archiveEmptyMsg.style.display = 'none';
+    
+    archivedTasks.forEach(task => {
+        const item = document.createElement('div');
+        item.className = 'archive-item';
+        
+        let completedDateFormatted = 'recently';
+        if (task.completed_at) {
+            let dateStr = task.completed_at;
+            if (!dateStr.includes('T')) {
+                dateStr = dateStr.replace(' ', 'T') + 'Z';
+            }
+            const dCompleted = new Date(dateStr);
+            if (!isNaN(dCompleted.getTime())) {
+                const month = dCompleted.toLocaleDateString('en-US', { month: 'short' });
+                const day = dCompleted.getDate();
+                const hours = String(dCompleted.getHours()).padStart(2, '0');
+                const minutes = String(dCompleted.getMinutes()).padStart(2, '0');
+                completedDateFormatted = `${month} ${day} ${hours}:${minutes}`;
+            }
+        }
+        
+        const descHtml = task.description ? `<p class="archive-item-desc">${escapeHTML(task.description)}</p>` : '';
+        
+        let dueBadge = '';
+        if (task.due_date) {
+            const dDue = new Date(task.due_date);
+            dueBadge = `<span>Due: ${dDue.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>`;
+        }
+        
+        item.innerHTML = `
+            <div class="archive-item-info">
+                <span class="archive-item-title">${escapeHTML(task.title)}</span>
+                ${descHtml}
+                <div class="archive-item-meta">
+                    <span>Done: ${completedDateFormatted}</span>
+                    ${dueBadge}
+                </div>
+            </div>
+            <button class="btn btn-secondary btn-restore" data-id="${task.id}">
+                Restore
+            </button>
+        `;
+        
+        const restoreBtn = item.querySelector('.btn-restore');
+        restoreBtn.addEventListener('click', async () => {
+            await restoreArchivedTask(task.id);
+        });
+        
+        archiveItemsContainer.appendChild(item);
+    });
+}
+
+async function restoreArchivedTask(id) {
+    try {
+        const res = await fetch(`/api/tasks/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ completed: false })
+        });
+        if (!res.ok) throw new Error('Failed to restore task');
+        
+        showToast('Task restored to workspace.');
+        await fetchTasks();
+        await fetchArchivedTasks();
+    } catch (err) {
+        showToast(err.message, 'error');
+    }
+}
+
 
 // Utility: Show Toast Notifications
 function showToast(message, type = 'success') {

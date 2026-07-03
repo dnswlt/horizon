@@ -728,3 +728,194 @@ textarea {
         transform: translateY(-20px) scale(0.9);
     }
 }
+
+/* Header Actions spacing */
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+/* Show Completed Button active state */
+.btn-secondary.active {
+    background: rgba(99, 102, 241, 0.12) !important;
+    border-color: rgba(99, 102, 241, 0.25) !important;
+    color: var(--text-primary) !important;
+}
+
+.btn-secondary.active svg {
+    color: var(--primary) !important;
+}
+
+/* Workspace Tabs */
+.workspace-tabs {
+    display: flex;
+    gap: 0.25rem;
+    background: rgba(15, 23, 42, 0.4);
+    border: 1px solid var(--border-color);
+    padding: 0.25rem;
+    border-radius: var(--radius-md);
+}
+
+.tab-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-family: var(--font-sans);
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: transparent;
+    border: 1px solid transparent;
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.tab-btn svg {
+    color: var(--text-muted);
+    transition: color var(--transition-fast);
+}
+
+.tab-btn:hover {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.tab-btn.active {
+    color: var(--text-primary);
+    background: rgba(99, 102, 241, 0.12);
+    border-color: rgba(99, 102, 241, 0.2);
+}
+
+.tab-btn.active svg {
+    color: var(--primary);
+}
+
+/* Tab Views */
+.tab-view {
+    display: none;
+}
+
+.tab-view.active {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+    animation: tabFadeIn var(--transition-normal) forwards;
+}
+
+@keyframes tabFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Archive Tab Specifics */
+.archive-section {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.archive-intro {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+}
+
+.archive-list-container {
+    background: rgba(15, 23, 42, 0.25);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+    min-height: 350px;
+}
+
+.archive-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+    padding: 6rem 1.5rem;
+    text-align: center;
+    gap: 0.5rem;
+}
+
+.archive-empty svg {
+    color: var(--text-muted);
+    margin-bottom: 0.5rem;
+}
+
+.archive-empty p {
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.archive-empty span {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.archive-items {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.archive-item {
+    background: rgba(30, 41, 59, 0.2);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 1rem 1.25rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    transition: all var(--transition-fast);
+}
+
+.archive-item:hover {
+    background: rgba(30, 41, 59, 0.35);
+    border-color: var(--border-color-hover);
+}
+
+.archive-item-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    flex-grow: 1;
+}
+
+.archive-item-title {
+    font-weight: 500;
+    font-size: 0.95rem;
+    color: var(--text-primary);
+    text-decoration: line-through;
+    opacity: 0.65;
+}
+
+.archive-item-desc {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    word-break: break-word;
+}
+
+.archive-item-meta {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 0.25rem;
+}
+
+.archive-item-meta span {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}

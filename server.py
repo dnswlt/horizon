@@ -1,6 +1,7 @@
 import os
 import sqlite3
 import uuid
+import datetime
 from typing import List, Optional
 from pydantic import BaseModel
 from fastapi import FastAPI, HTTPException
@@ -26,16 +27,27 @@ def init_db():
             due_date TEXT, -- YYYY-MM-DD format or NULL for backlog
             position INTEGER NOT NULL,
             completed INTEGER DEFAULT 0,
+            completed_at TEXT, -- YYYY-MM-DD HH:MM:SS format (UTC)
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
         )
     """)
+    conn.commit()
+
+    # Dynamic Migration: Check if completed_at column exists
+    cursor.execute("PRAGMA table_info(tasks)")
+    columns = [col[1] for col in cursor.fetchall()]
+    if "completed_at" not in columns:
+        cursor.execute("ALTER TABLE tasks ADD COLUMN completed_at TEXT")
+        conn.commit()
+
+    # Data Cleanup: Ensure all completed tasks have a valid completed_at timestamp
+    cursor.execute("UPDATE tasks SET completed_at = datetime('now') WHERE completed = 1 AND (completed_at IS NULL OR completed_at = '')")
     conn.commit()
 
     # Check if empty to seed
     cursor.execute("SELECT COUNT(*) FROM tasks")
     if cursor.fetchone()[0] == 0:
         # Seed initial tasks
-        import datetime
         today = datetime.date.today()
         
         # Helper to find workdays (skipping Saturday/Sunday)
@@ -47,28 +59,35 @@ def init_db():
                 workdays.append(curr.strftime("%Y-%m-%d"))
             curr += datetime.timedelta(days=1)
 
+        now_utc = datetime.datetime.now(datetime.timezone.utc)
+        recent_completed = (now_utc - datetime.timedelta(days=2)).strftime("%Y-%m-%d %H:%M:%S")
+        old_completed = (now_utc - datetime.timedelta(days=10)).strftime("%Y-%m-%d %H:%M:%S")
+
         seed_tasks = [
             # Day 1
-            (str(uuid.uuid4()), "Sprint Planning Meeting", "Discuss scope and priorities for the upcoming sprint with the product team.", workdays[0], 0, 0),
-            (str(uuid.uuid4()), "Review PR #412", "Code review for the database migration script and user profile updates.", workdays[0], 1, 1),
+            (str(uuid.uuid4()), "Sprint Planning Meeting", "Discuss scope and priorities for the upcoming sprint with the product team.", workdays[0], 0, 0, None),
+            (str(uuid.uuid4()), "Review PR #412", "Code review for the database migration script and user profile updates.", workdays[0], 1, 1, recent_completed),
             # Day 2
-            (str(uuid.uuid4()), "Design Session: Drag & Drop UX", "Flesh out UI/UX interactions for the kanban workspace.", workdays[1], 0, 0),
+            (str(uuid.uuid4()), "Design Session: Drag & Drop UX", "Flesh out UI/UX interactions for the kanban workspace.", workdays[1], 0, 0, None),
             # Day 3
-            (str(uuid.uuid4()), "1on1 with Lead Engineer", "Bi-weekly catch up on career goals, project progress, and blocker cleanup.", workdays[2], 0, 0),
-            (str(uuid.uuid4()), "Draft Q3 Roadmap", "Prepare slides for the executive review on product strategy.", workdays[2], 1, 0),
+            (str(uuid.uuid4()), "1on1 with Lead Engineer", "Bi-weekly catch up on career goals, project progress, and blocker cleanup.", workdays[2], 0, 0, None),
+            (str(uuid.uuid4()), "Draft Q3 Roadmap", "Prepare slides for the executive review on product strategy.", workdays[2], 1, 0, None),
             # Day 4
-            (str(uuid.uuid4()), "Refactor Notification Service", "Consolidate email and push notification handlers to reduce latency.", workdays[3], 0, 0),
+            (str(uuid.uuid4()), "Refactor Notification Service", "Consolidate email and push notification handlers to reduce latency.", workdays[3], 0, 0, None),
             # Day 5
-            (str(uuid.uuid4()), "Release v1.2.0-rc1", "Prepare release notes, tag git commit, and monitor staging logs.", workdays[4], 0, 0),
+            (str(uuid.uuid4()), "Release v1.2.0-rc1", "Prepare release notes, tag git commit, and monitor staging logs.", workdays[4], 0, 0, None),
             # Backlog
-            (str(uuid.uuid4()), "Upgrade Python to 3.12", "Explore performance benefits and new syntax features.", None, 0, 0),
-            (str(uuid.uuid4()), "Optimize SQLite index size", "Analyze queries and prune unused indexes to optimize disk usage.", None, 1, 0),
-            (str(uuid.uuid4()), "Write integration tests for Auth flow", "Ensure user sessions expire correctly and token renewal behaves as expected.", None, 2, 0),
-            (str(uuid.uuid4()), "Revamp onboarding documentation", "Add code examples and quickstart instructions to the wiki.", None, 3, 0),
+            (str(uuid.uuid4()), "Upgrade Python to 3.12", "Explore performance benefits and new syntax features.", None, 0, 0, None),
+            (str(uuid.uuid4()), "Optimize SQLite index size", "Analyze queries and prune unused indexes to optimize disk usage.", None, 1, 0, None),
+            (str(uuid.uuid4()), "Write integration tests for Auth flow", "Ensure user sessions expire correctly and token renewal behaves as expected.", None, 2, 0, None),
+            (str(uuid.uuid4()), "Revamp onboarding documentation", "Add code examples and quickstart instructions to the wiki.", None, 3, 0, None),
+            # Archived Completed Tasks
+            (str(uuid.uuid4()), "Clean up deprecated API v1 routes", "Deleted unused endpoints and updated API gateway configuration.", None, 4, 1, old_completed),
+            (str(uuid.uuid4()), "Fix memory leak in websocket controller", "Identified and patched a listener leak causing heap growth.", workdays[0], 2, 1, old_completed),
         ]
         
         cursor.executemany(
-            "INSERT INTO tasks (id, title, description, due_date, position, completed) VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO tasks (id, title, description, due_date, position, completed, completed_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
             seed_tasks
         )
         conn.commit()
@@ -104,9 +123,29 @@ class TaskReorderRequest(BaseModel):
 # Endpoints
 @app.get("/api/tasks")
 def get_tasks():
+    # Return all active tasks OR tasks completed in the last 7 days
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM tasks ORDER BY position ASC")
+    cursor.execute("""
+        SELECT * FROM tasks 
+        WHERE completed = 0 
+           OR (completed = 1 AND completed_at >= datetime('now', '-7 days'))
+        ORDER BY position ASC
+    """)
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+@app.get("/api/tasks/archive")
+def get_archived_tasks():
+    # Return all completed tasks
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT * FROM tasks 
+        WHERE completed = 1 
+        ORDER BY completed_at DESC
+    """)
     rows = cursor.fetchall()
     conn.close()
     return [dict(r) for r in rows]
@@ -156,6 +195,14 @@ def update_task(task_id: str, task: TaskUpdate):
     if task.completed is not None:
         update_fields.append("completed = ?")
         params.append(1 if task.completed else 0)
+        
+        # Keep track of completed_at
+        update_fields.append("completed_at = ?")
+        if task.completed:
+            now_utc = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            params.append(now_utc)
+        else:
+            params.append(None)
 
     if not update_fields:
         conn.close()
