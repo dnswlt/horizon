@@ -1,4 +1,5 @@
 import os
+import json
 import sqlite3
 import uuid
 import datetime
@@ -31,6 +32,15 @@ def init_db():
             deleted_at TEXT, -- YYYY-MM-DD HH:MM:SS format (UTC) or NULL
             color TEXT, -- red, green, blue, yellow, purple, or NULL
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    conn.commit()
+
+    # Key-value settings store (single-user app, so no user scoping)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
         )
     """)
     conn.commit()
@@ -131,7 +141,47 @@ class TaskReorderItem(BaseModel):
 class TaskReorderRequest(BaseModel):
     tasks: List[TaskReorderItem]
 
+DEFAULT_COLOR_LABELS = {
+    "red": "Red",
+    "green": "Green",
+    "blue": "Blue",
+    "yellow": "Yellow",
+    "purple": "Purple",
+}
+
+class ColorLabels(BaseModel):
+    red: str
+    green: str
+    blue: str
+    yellow: str
+    purple: str
+
 # Endpoints
+@app.get("/api/settings/color-labels")
+def get_color_labels():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT value FROM settings WHERE key = 'color_labels'")
+    row = cursor.fetchone()
+    conn.close()
+    if row:
+        # Merge over defaults so missing keys fall back gracefully.
+        return {**DEFAULT_COLOR_LABELS, **json.loads(row["value"])}
+    return DEFAULT_COLOR_LABELS
+
+@app.put("/api/settings/color-labels")
+def update_color_labels(labels: ColorLabels):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO settings (key, value) VALUES ('color_labels', ?) "
+        "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        (labels.model_dump_json(),)
+    )
+    conn.commit()
+    conn.close()
+    return labels.model_dump()
+
 @app.get("/api/tasks")
 def get_tasks():
     # Return all active tasks OR tasks completed in the last 7 days (not deleted)

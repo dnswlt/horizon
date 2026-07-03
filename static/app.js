@@ -40,11 +40,21 @@ const PAGE_SIZE = 50;
 // Color selection state
 let selectedColor = null;
 
+// Color labels state (defaults; overwritten by server values on load)
+let colorLabels = {
+    red: 'Red',
+    green: 'Green',
+    blue: 'Blue',
+    yellow: 'Yellow',
+    purple: 'Purple'
+};
+
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
     calculateWorkdays();
     renderColumnsStructure();
     renderQuickDateButtons();
+    updateColorDotTooltips();
     
     // Set up toggle initial state
     if (showCompleted) {
@@ -52,8 +62,51 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     fetchTasks();
+    fetchColorLabels();
     setupEventListeners();
 });
+
+// Load color labels from the server and reflect them in the UI
+async function fetchColorLabels() {
+    try {
+        const res = await fetch('/api/settings/color-labels');
+        if (!res.ok) throw new Error('Failed to load color labels');
+        colorLabels = await res.json();
+        applyColorLabelsToInputs();
+        updateColorDotTooltips();
+    } catch (err) {
+        // Fall back silently to defaults; not worth a toast on load.
+        console.error(err);
+    }
+}
+
+// Sync the settings dropdown inputs with the current colorLabels
+function applyColorLabelsToInputs() {
+    document.querySelectorAll('.color-label-input').forEach(input => {
+        const color = input.getAttribute('data-color');
+        if (color && colorLabels[color]) {
+            input.value = colorLabels[color];
+        }
+    });
+}
+
+// Persist color labels to the server (debounced)
+let colorLabelsSaveTimer = null;
+function saveColorLabels() {
+    clearTimeout(colorLabelsSaveTimer);
+    colorLabelsSaveTimer = setTimeout(async () => {
+        try {
+            const res = await fetch('/api/settings/color-labels', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(colorLabels)
+            });
+            if (!res.ok) throw new Error('Failed to save color labels');
+        } catch (err) {
+            showToast(err.message, 'error');
+        }
+    }, 500);
+}
 
 // Calculate the upcoming 5 work days starting from today
 function calculateWorkdays() {
@@ -551,6 +604,7 @@ function openModal(task = null) {
     
     updateQuickDateActiveHighlight();
     updateColorPickerActiveHighlight();
+    updateColorDotTooltips();
     taskModal.classList.add('active');
     taskTitleInput.focus();
 }
@@ -563,6 +617,18 @@ function updateColorPickerActiveHighlight() {
             dot.classList.add('active');
         } else {
             dot.classList.remove('active');
+        }
+    });
+}
+
+function updateColorDotTooltips() {
+    const dots = document.querySelectorAll('#task-color-picker .btn-color-dot');
+    dots.forEach(dot => {
+        const color = dot.getAttribute('data-color');
+        if (color) {
+            dot.title = colorLabels[color] || (color.charAt(0).toUpperCase() + color.slice(1));
+        } else {
+            dot.title = 'Default';
         }
     });
 }
@@ -730,6 +796,42 @@ function setupEventListeners() {
             toggleCompletedBtn.classList.remove('active');
         }
         renderTasks();
+    });
+
+    // Toggle settings dropdown
+    const settingsMenuBtn = document.getElementById('settings-menu-btn');
+    const settingsDropdown = document.getElementById('settings-dropdown');
+    
+    if (settingsMenuBtn && settingsDropdown) {
+        settingsMenuBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            settingsDropdown.classList.toggle('active');
+        });
+        
+        settingsDropdown.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+        
+        document.addEventListener('click', (e) => {
+            if (!settingsDropdown.contains(e.target) && e.target !== settingsMenuBtn) {
+                settingsDropdown.classList.remove('active');
+            }
+        });
+    }
+
+    // Populate and bind color label inputs
+    document.querySelectorAll('.color-label-input').forEach(input => {
+        const color = input.getAttribute('data-color');
+        if (color && colorLabels[color]) {
+            input.value = colorLabels[color];
+        }
+        
+        input.addEventListener('input', (e) => {
+            const val = e.target.value.trim();
+            colorLabels[color] = val || (color.charAt(0).toUpperCase() + color.slice(1));
+            saveColorLabels();
+            updateColorDotTooltips();
+        });
     });
     
     // Tab switching
