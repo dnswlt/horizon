@@ -37,6 +37,9 @@ let archiveOffset = 0;
 let deletedOffset = 0;
 const PAGE_SIZE = 50;
 
+// Color selection state
+let selectedColor = null;
+
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
     calculateWorkdays();
@@ -119,7 +122,7 @@ async function fetchTasks() {
     try {
         const res = await fetch('/api/tasks');
         if (!res.ok) throw new Error('Failed to load tasks');
-        tasks = await res.ok ? await res.json() : [];
+        tasks = await res.json();
         renderTasks();
     } catch (err) {
         showToast(err.message, 'error');
@@ -201,7 +204,7 @@ function renderTasks() {
 // DOM Helper: Create task card element
 function createCardElement(task) {
     const card = document.createElement('div');
-    card.className = `task-card ${task.completed ? 'completed' : ''}`;
+    card.className = `task-card ${task.completed ? 'completed' : ''} ${task.color ? 'color-' + task.color : ''}`;
     card.draggable = true;
     card.dataset.id = task.id;
     
@@ -536,17 +539,32 @@ function openModal(task = null) {
         taskDescInput.value = task.description || '';
         
         taskDateSelect.value = task.due_date || '';
+        selectedColor = task.color || null;
     } else {
         // Add mode
         modalTitle.textContent = 'Create Task';
         taskIdField.value = '';
         taskForm.reset();
         taskDateSelect.value = ''; // Default to backlog
+        selectedColor = null;
     }
     
     updateQuickDateActiveHighlight();
+    updateColorPickerActiveHighlight();
     taskModal.classList.add('active');
     taskTitleInput.focus();
+}
+
+function updateColorPickerActiveHighlight() {
+    const dots = document.querySelectorAll('#task-color-picker .btn-color-dot');
+    dots.forEach(dot => {
+        const c = dot.getAttribute('data-color') || null;
+        if (c === selectedColor) {
+            dot.classList.add('active');
+        } else {
+            dot.classList.remove('active');
+        }
+    });
 }
 
 function closeModal() {
@@ -634,7 +652,8 @@ taskForm.addEventListener('submit', async (e) => {
                 body: JSON.stringify({
                     title,
                     description,
-                    due_date: dueDate
+                    due_date: dueDate,
+                    color: selectedColor
                 })
             });
             if (!res.ok) throw new Error('Failed to update task');
@@ -648,7 +667,8 @@ taskForm.addEventListener('submit', async (e) => {
                     title,
                     description,
                     due_date: dueDate,
-                    position
+                    position,
+                    color: selectedColor
                 })
             });
             if (!res.ok) throw new Error('Failed to create task');
@@ -688,6 +708,17 @@ function setupEventListeners() {
 
     // Synchronize custom date picker manual input changes
     taskDateSelect.addEventListener('input', updateQuickDateActiveHighlight);
+
+    // Color picker dot selector
+    const colorPickerContainer = document.getElementById('task-color-picker');
+    if (colorPickerContainer) {
+        colorPickerContainer.addEventListener('click', (e) => {
+            const btn = e.target.closest('.btn-color-dot');
+            if (!btn) return;
+            selectedColor = btn.getAttribute('data-color') || null;
+            updateColorPickerActiveHighlight();
+        });
+    }
     
     // Toggle completed state button click
     toggleCompletedBtn.addEventListener('click', () => {
@@ -780,7 +811,7 @@ function renderArchivedTasks(archivedTasks, append = false) {
     
     archivedTasks.forEach(task => {
         const item = document.createElement('div');
-        item.className = 'archive-item';
+        item.className = `archive-item ${task.color ? 'color-' + task.color : ''}`;
         
         let completedDateFormatted = 'recently';
         if (task.completed_at) {
@@ -882,7 +913,7 @@ function renderDeletedTasks(deletedTasks, append = false) {
     
     deletedTasks.forEach(task => {
         const item = document.createElement('div');
-        item.className = 'archive-item';
+        item.className = `archive-item ${task.color ? 'color-' + task.color : ''}`;
         
         let deletedDateFormatted = 'recently';
         if (task.deleted_at) {

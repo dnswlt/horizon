@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/style.css?v=4">
 </head>
 <body>
     <!-- App Container -->
@@ -191,6 +191,19 @@
                     </div>
                 </div>
 
+                <div class="form-row">
+                    <div class="form-group">
+                        <div class="color-picker-container" id="task-color-picker">
+                            <button type="button" class="btn-color-dot active" data-color="" title="Default"></button>
+                            <button type="button" class="btn-color-dot color-red" data-color="red" title="Red"></button>
+                            <button type="button" class="btn-color-dot color-green" data-color="green" title="Green"></button>
+                            <button type="button" class="btn-color-dot color-blue" data-color="blue" title="Blue"></button>
+                            <button type="button" class="btn-color-dot color-yellow" data-color="yellow" title="Yellow"></button>
+                            <button type="button" class="btn-color-dot color-purple" data-color="purple" title="Purple"></button>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="modal-actions">
                     <button type="button" class="btn btn-secondary" id="modal-cancel-btn">Cancel</button>
                     <button type="submit" class="btn btn-primary" id="modal-submit-btn">Save Task</button>
@@ -202,6 +215,6 @@
     <!-- Toast Notifications -->
     <div id="toast-container"></div>
 
-    <script src="/static/app.js"></script>
+    <script src="/static/app.js?v=4"></script>
 </body>
 </html>

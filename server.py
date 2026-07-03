@@ -29,12 +29,13 @@ def init_db():
             completed INTEGER DEFAULT 0,
             completed_at TEXT, -- YYYY-MM-DD HH:MM:SS format (UTC)
             deleted_at TEXT, -- YYYY-MM-DD HH:MM:SS format (UTC) or NULL
+            color TEXT, -- red, green, blue, yellow, purple, or NULL
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
         )
     """)
     conn.commit()
 
-    # Dynamic Migration: Check if completed_at and deleted_at columns exist
+    # Dynamic Migration: Check if completed_at, deleted_at, color columns exist
     cursor.execute("PRAGMA table_info(tasks)")
     columns = [col[1] for col in cursor.fetchall()]
     if "completed_at" not in columns:
@@ -42,6 +43,9 @@ def init_db():
         conn.commit()
     if "deleted_at" not in columns:
         cursor.execute("ALTER TABLE tasks ADD COLUMN deleted_at TEXT")
+        conn.commit()
+    if "color" not in columns:
+        cursor.execute("ALTER TABLE tasks ADD COLUMN color TEXT")
         conn.commit()
 
     # Data Cleanup: Ensure all completed tasks have a valid completed_at timestamp
@@ -69,29 +73,29 @@ def init_db():
 
         seed_tasks = [
             # Day 1
-            (str(uuid.uuid4()), "Sprint Planning Meeting", "Discuss scope and priorities for the upcoming sprint with the product team.", workdays[0], 0, 0, None),
-            (str(uuid.uuid4()), "Review PR #412", "Code review for the database migration script and user profile updates.", workdays[0], 1, 1, recent_completed),
+            (str(uuid.uuid4()), "Sprint Planning Meeting", "Discuss scope and priorities for the upcoming sprint with the product team.", workdays[0], 0, 0, None, "blue"),
+            (str(uuid.uuid4()), "Review PR #412", "Code review for the database migration script and user profile updates.", workdays[0], 1, 1, recent_completed, "green"),
             # Day 2
-            (str(uuid.uuid4()), "Design Session: Drag & Drop UX", "Flesh out UI/UX interactions for the kanban workspace.", workdays[1], 0, 0, None),
+            (str(uuid.uuid4()), "Design Session: Drag & Drop UX", "Flesh out UI/UX interactions for the kanban workspace.", workdays[1], 0, 0, None, "yellow"),
             # Day 3
-            (str(uuid.uuid4()), "1on1 with Lead Engineer", "Bi-weekly catch up on career goals, project progress, and blocker cleanup.", workdays[2], 0, 0, None),
-            (str(uuid.uuid4()), "Draft Q3 Roadmap", "Prepare slides for the executive review on product strategy.", workdays[2], 1, 0, None),
+            (str(uuid.uuid4()), "1on1 with Lead Engineer", "Bi-weekly catch up on career goals, project progress, and blocker cleanup.", workdays[2], 0, 0, None, "purple"),
+            (str(uuid.uuid4()), "Draft Q3 Roadmap", "Prepare slides for the executive review on product strategy.", workdays[2], 1, 0, None, "red"),
             # Day 4
-            (str(uuid.uuid4()), "Refactor Notification Service", "Consolidate email and push notification handlers to reduce latency.", workdays[3], 0, 0, None),
+            (str(uuid.uuid4()), "Refactor Notification Service", "Consolidate email and push notification handlers to reduce latency.", workdays[3], 0, 0, None, None),
             # Day 5
-            (str(uuid.uuid4()), "Release v1.2.0-rc1", "Prepare release notes, tag git commit, and monitor staging logs.", workdays[4], 0, 0, None),
+            (str(uuid.uuid4()), "Release v1.2.0-rc1", "Prepare release notes, tag git commit, and monitor staging logs.", workdays[4], 0, 0, None, None),
             # Backlog
-            (str(uuid.uuid4()), "Upgrade Python to 3.12", "Explore performance benefits and new syntax features.", None, 0, 0, None),
-            (str(uuid.uuid4()), "Optimize SQLite index size", "Analyze queries and prune unused indexes to optimize disk usage.", None, 1, 0, None),
-            (str(uuid.uuid4()), "Write integration tests for Auth flow", "Ensure user sessions expire correctly and token renewal behaves as expected.", None, 2, 0, None),
-            (str(uuid.uuid4()), "Revamp onboarding documentation", "Add code examples and quickstart instructions to the wiki.", None, 3, 0, None),
+            (str(uuid.uuid4()), "Upgrade Python to 3.12", "Explore performance benefits and new syntax features.", None, 0, 0, None, None),
+            (str(uuid.uuid4()), "Optimize SQLite index size", "Analyze queries and prune unused indexes to optimize disk usage.", None, 1, 0, None, "blue"),
+            (str(uuid.uuid4()), "Write integration tests for Auth flow", "Ensure user sessions expire correctly and token renewal behaves as expected.", None, 2, 0, None, "red"),
+            (str(uuid.uuid4()), "Revamp onboarding documentation", "Add code examples and quickstart instructions to the wiki.", None, 3, 0, None, None),
             # Archived Completed Tasks
-            (str(uuid.uuid4()), "Clean up deprecated API v1 routes", "Deleted unused endpoints and updated API gateway configuration.", None, 4, 1, old_completed),
-            (str(uuid.uuid4()), "Fix memory leak in websocket controller", "Identified and patched a listener leak causing heap growth.", workdays[0], 2, 1, old_completed),
+            (str(uuid.uuid4()), "Clean up deprecated API v1 routes", "Deleted unused endpoints and updated API gateway configuration.", None, 4, 1, old_completed, None),
+            (str(uuid.uuid4()), "Fix memory leak in websocket controller", "Identified and patched a listener leak causing heap growth.", workdays[0], 2, 1, old_completed, None),
         ]
         
         cursor.executemany(
-            "INSERT INTO tasks (id, title, description, due_date, position, completed, completed_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO tasks (id, title, description, due_date, position, completed, completed_at, color) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             seed_tasks
         )
         conn.commit()
@@ -108,6 +112,7 @@ class TaskCreate(BaseModel):
     description: Optional[str] = ""
     due_date: Optional[str] = None # YYYY-MM-DD or None
     position: int
+    color: Optional[str] = None
 
 class TaskUpdate(BaseModel):
     title: Optional[str] = None
@@ -116,6 +121,7 @@ class TaskUpdate(BaseModel):
     position: Optional[int] = None
     completed: Optional[bool] = None
     deleted: Optional[bool] = None
+    color: Optional[str] = None
 
 class TaskReorderItem(BaseModel):
     id: str
@@ -183,8 +189,8 @@ def create_task(task: TaskCreate):
     cursor = conn.cursor()
     task_id = str(uuid.uuid4())
     cursor.execute(
-        "INSERT INTO tasks (id, title, description, due_date, position, completed) VALUES (?, ?, ?, ?, ?, 0)",
-        (task_id, task.title, task.description, task.due_date, task.position)
+        "INSERT INTO tasks (id, title, description, due_date, position, completed, color) VALUES (?, ?, ?, ?, ?, 0, ?)",
+        (task_id, task.title, task.description, task.due_date, task.position, task.color)
     )
     conn.commit()
     cursor.execute("SELECT * FROM tasks WHERE id = ?", (task_id,))
@@ -239,6 +245,10 @@ def update_task(task_id: str, task: TaskUpdate):
             params.append(now_utc)
         else:
             params.append(None)
+
+    if "color" in task.model_fields_set:
+        update_fields.append("color = ?")
+        params.append(task.color)
 
     if not update_fields:
         conn.close()
