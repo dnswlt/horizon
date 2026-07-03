@@ -17,12 +17,15 @@
             <div class="header-logo">
                 <div class="logo-icon">
                     <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                        <line x1="1" y1="18" x2="23" y2="18"></line>
+                        <path d="M6 18a6 6 0 0 1 12 0"></path>
+                        <line x1="12" y1="4" x2="12" y2="8"></line>
+                        <line x1="4" y1="8" x2="6" y2="10"></line>
+                        <line x1="20" y1="8" x2="18" y2="10"></line>
                     </svg>
                 </div>
                 <div class="logo-text">
                     <h1>Horizon</h1>
-                    <span class="badge">Workspace</span>
                 </div>
             </div>
             
@@ -81,7 +84,6 @@
                             <h2>Backlog</h2>
                             <span class="counter" id="backlog-counter">0</span>
                         </div>
-                        <span class="subtext">Tasks without scheduled dates or set for later</span>
                     </div>
                     
                     <div class="backlog-container" id="backlog-dropzone">
@@ -104,12 +106,10 @@
                 </section>
             </div>
 
-            <!-- Tab Content: Archive View -->
             <div id="view-archive" class="tab-view">
                 <section class="archive-section">
                     <div class="section-title">
-                        <h2>Completed Task Archive</h2>
-                        <span class="subtext">A historical record of all completed tasks. You can restore any task back to the active workspace.</span>
+                        <h2>Archive</h2>
                     </div>
                     <div class="archive-list-container">
                         <div id="archive-empty-msg" class="archive-empty">
@@ -122,7 +122,24 @@
                             <span>Completed tasks will be saved here.</span>
                         </div>
                         <div class="archive-items" id="archive-items-container">
-                            <!-- Dynamic archive items -->
+                        </div>
+                    </div>
+                </section>
+
+                <section class="deleted-section">
+                    <div class="section-title">
+                        <h2>Deleted</h2>
+                    </div>
+                    <div class="archive-list-container">
+                        <div id="deleted-empty-msg" class="archive-empty">
+                            <svg viewBox="0 0 24 24" width="48" height="48" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="3 6 5 6 21 6"></polyline>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                            </svg>
+                            <p>Trash is empty</p>
+                            <span>Deleted tasks will be saved here.</span>
+                        </div>
+                        <div class="archive-items" id="deleted-items-container">
                         </div>
                     </div>
                 </section>

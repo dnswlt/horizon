@@ -801,7 +801,7 @@ textarea {
 .tab-view.active {
     display: flex;
     flex-direction: column;
-    gap: 2rem;
+    gap: 1.5rem;
     animation: tabFadeIn var(--transition-normal) forwards;
 }
 
@@ -820,7 +820,7 @@ textarea {
 .archive-section {
     display: flex;
     flex-direction: column;
-    gap: 1.25rem;
+    gap: 1rem;
 }
 
 .archive-intro {
@@ -829,11 +829,8 @@ textarea {
 }
 
 .archive-list-container {
-    background: rgba(15, 23, 42, 0.25);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-lg);
-    padding: 1.5rem;
-    min-height: 350px;
+    display: flex;
+    flex-direction: column;
 }
 
 .archive-empty {
@@ -842,7 +839,7 @@ textarea {
     align-items: center;
     justify-content: center;
     color: var(--text-secondary);
-    padding: 6rem 1.5rem;
+    padding: 2.5rem 1.5rem;
     text-align: center;
     gap: 0.5rem;
 }
@@ -918,4 +915,23 @@ textarea {
     display: flex;
     align-items: center;
     gap: 0.25rem;
+}
+
+/* Permanent delete button in Trash */
+.btn-delete-perm {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    color: #f87171;
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius-sm);
+    font-size: 0.85rem;
+    font-family: var(--font-sans);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.btn-delete-perm:hover {
+    background: rgba(239, 68, 68, 0.2);
+    border-color: rgba(239, 68, 68, 0.35);
+    color: #ef4444;
 }

@@ -28,6 +28,8 @@ const viewPlanner = document.getElementById('view-planner');
 const viewArchive = document.getElementById('view-archive');
 const archiveItemsContainer = document.getElementById('archive-items-container');
 const archiveEmptyMsg = document.getElementById('archive-empty-msg');
+const deletedItemsContainer = document.getElementById('deleted-items-container');
+const deletedEmptyMsg = document.getElementById('deleted-empty-msg');
 const toggleCompletedBtn = document.getElementById('toggle-completed-btn');
 
 // Initialize
@@ -283,6 +285,14 @@ function createCardElement(task) {
         }
     });
 
+    // Double click card to edit
+    card.addEventListener('dblclick', (e) => {
+        if (e.target.closest('.card-actions') || e.target.closest('.card-checkbox')) {
+            return;
+        }
+        openModal(task);
+    });
+
     return card;
 }
 
@@ -326,7 +336,7 @@ async function deleteTask(id) {
         
         tasks = tasks.filter(t => t.id !== id);
         renderTasks();
-        showToast('Task deleted successfully.');
+        showToast('Task moved to Trash.');
     } catch (err) {
         showToast(err.message, 'error');
     }
@@ -647,6 +657,7 @@ async function switchTab(tabId) {
         viewPlanner.classList.remove('active');
         viewArchive.classList.add('active');
         await fetchArchivedTasks();
+        await fetchDeletedTasks();
     }
 }
 
@@ -733,6 +744,119 @@ async function restoreArchivedTask(id) {
         showToast('Task restored to workspace.');
         await fetchTasks();
         await fetchArchivedTasks();
+        await fetchDeletedTasks();
+    } catch (err) {
+        showToast(err.message, 'error');
+    }
+}
+
+// Deleted (Trash) Functions
+async function fetchDeletedTasks() {
+    try {
+        const res = await fetch('/api/tasks/deleted');
+        if (!res.ok) throw new Error('Failed to load trash');
+        const deletedTasks = await res.json();
+        renderDeletedTasks(deletedTasks);
+    } catch (err) {
+        showToast(err.message, 'error');
+    }
+}
+
+function renderDeletedTasks(deletedTasks) {
+    deletedItemsContainer.innerHTML = '';
+    if (deletedTasks.length === 0) {
+        deletedEmptyMsg.style.display = 'flex';
+        return;
+    }
+    deletedEmptyMsg.style.display = 'none';
+    
+    deletedTasks.forEach(task => {
+        const item = document.createElement('div');
+        item.className = 'archive-item';
+        
+        let deletedDateFormatted = 'recently';
+        if (task.deleted_at) {
+            let dateStr = task.deleted_at;
+            if (!dateStr.includes('T')) {
+                dateStr = dateStr.replace(' ', 'T') + 'Z';
+            }
+            const dDeleted = new Date(dateStr);
+            if (!isNaN(dDeleted.getTime())) {
+                const month = dDeleted.toLocaleDateString('en-US', { month: 'short' });
+                const day = dDeleted.getDate();
+                const hours = String(dDeleted.getHours()).padStart(2, '0');
+                const minutes = String(dDeleted.getMinutes()).padStart(2, '0');
+                deletedDateFormatted = `${month} ${day} ${hours}:${minutes}`;
+            }
+        }
+        
+        const descHtml = task.description ? `<p class="archive-item-desc">${escapeHTML(task.description)}</p>` : '';
+        
+        let dueBadge = '';
+        if (task.due_date) {
+            const dDue = new Date(task.due_date);
+            dueBadge = `<span>Due: ${dDue.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>`;
+        }
+        
+        item.innerHTML = `
+            <div class="archive-item-info">
+                <span class="archive-item-title" style="text-decoration: none; opacity: 0.8;">${escapeHTML(task.title)}</span>
+                ${descHtml}
+                <div class="archive-item-meta">
+                    <span>Deleted: ${deletedDateFormatted}</span>
+                    ${dueBadge}
+                </div>
+            </div>
+            <div style="display: flex; gap: 0.5rem;">
+                <button class="btn btn-secondary btn-restore-del" data-id="${task.id}">Restore</button>
+                <button class="btn btn-delete-perm" data-id="${task.id}">Delete Forever</button>
+            </div>
+        `;
+        
+        const restoreBtn = item.querySelector('.btn-restore-del');
+        restoreBtn.addEventListener('click', async () => {
+            await restoreDeletedTask(task.id);
+        });
+        
+        const deletePermBtn = item.querySelector('.btn-delete-perm');
+        deletePermBtn.addEventListener('click', async () => {
+            if (confirm('Permanently delete this task? This cannot be undone.')) {
+                await deletePermanently(task.id);
+            }
+        });
+        
+        deletedItemsContainer.appendChild(item);
+    });
+}
+
+async function restoreDeletedTask(id) {
+    try {
+        const res = await fetch(`/api/tasks/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ deleted: false })
+        });
+        if (!res.ok) throw new Error('Failed to restore task');
+        
+        showToast('Task restored to workspace.');
+        await fetchTasks();
+        await fetchArchivedTasks();
+        await fetchDeletedTasks();
+    } catch (err) {
+        showToast(err.message, 'error');
+    }
+}
+
+async function deletePermanently(id) {
+    try {
+        const res = await fetch(`/api/tasks/${id}/permanent`, {
+            method: 'DELETE'
+        });
+        if (!res.ok) throw new Error('Failed to delete task permanently');
+        
+        showToast('Task permanently deleted.');
+        await fetchArchivedTasks();
+        await fetchDeletedTasks();
     } catch (err) {
         showToast(err.message, 'error');
     }

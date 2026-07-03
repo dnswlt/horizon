@@ -28,16 +28,20 @@ def init_db():
             position INTEGER NOT NULL,
             completed INTEGER DEFAULT 0,
             completed_at TEXT, -- YYYY-MM-DD HH:MM:SS format (UTC)
+            deleted_at TEXT, -- YYYY-MM-DD HH:MM:SS format (UTC) or NULL
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
         )
     """)
     conn.commit()
 
-    # Dynamic Migration: Check if completed_at column exists
+    # Dynamic Migration: Check if completed_at and deleted_at columns exist
     cursor.execute("PRAGMA table_info(tasks)")
     columns = [col[1] for col in cursor.fetchall()]
     if "completed_at" not in columns:
         cursor.execute("ALTER TABLE tasks ADD COLUMN completed_at TEXT")
+        conn.commit()
+    if "deleted_at" not in columns:
+        cursor.execute("ALTER TABLE tasks ADD COLUMN deleted_at TEXT")
         conn.commit()
 
     # Data Cleanup: Ensure all completed tasks have a valid completed_at timestamp
@@ -111,6 +115,7 @@ class TaskUpdate(BaseModel):
     due_date: Optional[str] = None
     position: Optional[int] = None
     completed: Optional[bool] = None
+    deleted: Optional[bool] = None
 
 class TaskReorderItem(BaseModel):
     id: str
@@ -123,13 +128,13 @@ class TaskReorderRequest(BaseModel):
 # Endpoints
 @app.get("/api/tasks")
 def get_tasks():
-    # Return all active tasks OR tasks completed in the last 7 days
+    # Return all active tasks OR tasks completed in the last 7 days (not deleted)
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("""
         SELECT * FROM tasks 
-        WHERE completed = 0 
-           OR (completed = 1 AND completed_at >= datetime('now', '-7 days'))
+        WHERE ((completed = 0 OR (completed = 1 AND completed_at >= datetime('now', '-7 days'))))
+          AND deleted_at IS NULL
         ORDER BY position ASC
     """)
     rows = cursor.fetchall()
@@ -138,13 +143,27 @@ def get_tasks():
 
 @app.get("/api/tasks/archive")
 def get_archived_tasks():
-    # Return all completed tasks
+    # Return all completed tasks (not deleted)
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("""
         SELECT * FROM tasks 
-        WHERE completed = 1 
+        WHERE completed = 1 AND deleted_at IS NULL
         ORDER BY completed_at DESC
+    """)
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+@app.get("/api/tasks/deleted")
+def get_deleted_tasks():
+    # Return all soft-deleted tasks
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT * FROM tasks 
+        WHERE deleted_at IS NOT NULL
+        ORDER BY deleted_at DESC
     """)
     rows = cursor.fetchall()
     conn.close()
@@ -192,6 +211,7 @@ def update_task(task_id: str, task: TaskUpdate):
     if task.position is not None:
         update_fields.append("position = ?")
         params.append(task.position)
+    
     if task.completed is not None:
         update_fields.append("completed = ?")
         params.append(1 if task.completed else 0)
@@ -199,6 +219,14 @@ def update_task(task_id: str, task: TaskUpdate):
         # Keep track of completed_at
         update_fields.append("completed_at = ?")
         if task.completed:
+            now_utc = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            params.append(now_utc)
+        else:
+            params.append(None)
+
+    if task.deleted is not None:
+        update_fields.append("deleted_at = ?")
+        if task.deleted:
             now_utc = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
             params.append(now_utc)
         else:
@@ -237,7 +265,25 @@ def reorder_tasks(payload: TaskReorderRequest):
     return {"status": "success"}
 
 @app.delete("/api/tasks/{task_id}")
-def delete_task(task_id: str):
+def delete_task_soft(task_id: str):
+    # Soft delete task (move to Trash)
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM tasks WHERE id = ?", (task_id,))
+    db_task = cursor.fetchone()
+    if not db_task:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    now_utc = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    cursor.execute("UPDATE tasks SET deleted_at = ? WHERE id = ?", (now_utc, task_id))
+    conn.commit()
+    conn.close()
+    return {"status": "success"}
+
+@app.delete("/api/tasks/{task_id}/permanent")
+def delete_task_permanent(task_id: str):
+    # Permanently delete task
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM tasks WHERE id = ?", (task_id,))
@@ -260,4 +306,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.get("/")
 def read_index():
-    return FileResponse("static/index.html")
+    return FileResponse(
+        "static/index.html",
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"}
+    )
