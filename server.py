@@ -114,7 +114,7 @@ def init_db():
 # Initialize DB
 init_db()
 
-app = FastAPI(title="Task Planner API")
+app = FastAPI(title="Horizon API")
 
 # Pydantic models
 class TaskCreate(BaseModel):
