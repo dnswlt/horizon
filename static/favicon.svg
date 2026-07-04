@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <defs>
+    <linearGradient id="logo-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6366f1" />
+      <stop offset="100%" stop-color="#a855f7" />
+    </linearGradient>
+  </defs>
+  <!-- Background with border radius -->
+  <rect width="32" height="32" rx="7" fill="url(#logo-grad)" />
+  <!-- Logo SVG path translated to center -->
+  <g transform="translate(4, 4)" stroke="white" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <line x1="1" y1="18" x2="23" y2="18"></line>
+    <path d="M6 18a6 6 0 0 1 12 0"></path>
+    <line x1="12" y1="4" x2="12" y2="8"></line>
+    <line x1="4" y1="8" x2="6" y2="10"></line>
+    <line x1="20" y1="8" x2="18" y2="10"></line>
+  </g>
+</svg>
