@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css?v=11">
+    <link rel="stylesheet" href="/static/style.css?v=14">
 </head>
 <body>
     <!-- App Container -->
@@ -142,6 +142,24 @@
                         </div>
                         <div class="backlog-list" id="backlog-tasks-container">
                             <!-- Dynamic backlog cards -->
+                        </div>
+                    </div>
+
+                    <!-- Collapsed strip of snoozed tasks -->
+                    <div class="snoozed-strip" id="snoozed-strip" style="display: none;">
+                        <button class="snoozed-strip-header" id="snoozed-strip-header" aria-expanded="false">
+                            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="9"></circle>
+                                <polyline points="12 7 12 12 15 14"></polyline>
+                            </svg>
+                            <span>Snoozed</span>
+                            <span class="counter" id="snoozed-counter">0</span>
+                            <svg class="snoozed-chevron" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="6 9 12 15 18 9"></polyline>
+                            </svg>
+                        </button>
+                        <div class="snoozed-list" id="snoozed-list" style="display: none;">
+                            <!-- Dynamic snoozed rows -->
                         </div>
                     </div>
                 </section>
@@ -290,6 +308,6 @@
     <!-- Toast Notifications -->
     <div id="toast-container"></div>
 
-    <script src="/static/app.js?v=11"></script>
+    <script src="/static/app.js?v=14"></script>
 </body>
 </html>

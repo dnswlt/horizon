@@ -31,6 +31,7 @@ def init_db():
             completed_at TEXT, -- YYYY-MM-DD HH:MM:SS format (UTC)
             deleted_at TEXT, -- YYYY-MM-DD HH:MM:SS format (UTC) or NULL
             color TEXT, -- red, green, blue, yellow, purple, or NULL
+            defer_until TEXT, -- snooze date YYYY-MM-DD or NULL (see migration note)
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
         )
     """)
@@ -56,6 +57,11 @@ def init_db():
         conn.commit()
     if "color" not in columns:
         cursor.execute("ALTER TABLE tasks ADD COLUMN color TEXT")
+        conn.commit()
+    if "defer_until" not in columns:
+        # Snooze date (YYYY-MM-DD). Future = hidden/snoozed; past-or-today
+        # and not NULL = resurfaced; NULL = normal. Orthogonal to due_date.
+        cursor.execute("ALTER TABLE tasks ADD COLUMN defer_until TEXT")
         conn.commit()
 
     # Data Cleanup: Ensure all completed tasks have a valid completed_at timestamp
@@ -132,6 +138,7 @@ class TaskUpdate(BaseModel):
     completed: Optional[bool] = None
     deleted: Optional[bool] = None
     color: Optional[str] = None
+    defer_until: Optional[str] = None
 
 class TaskReorderItem(BaseModel):
     id: str
@@ -184,14 +191,34 @@ def update_color_labels(labels: ColorLabels):
 
 @app.get("/api/tasks")
 def get_tasks():
-    # Return all active tasks OR tasks completed in the last 7 days (not deleted)
+    # Return all active tasks OR tasks completed in the last 7 days (not deleted).
+    # Snoozed tasks (defer_until in the future) are excluded; once defer_until is
+    # today or past they resurface here and the client flags them.
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT * FROM tasks 
+        SELECT * FROM tasks
         WHERE ((completed = 0 OR (completed = 1 AND completed_at >= datetime('now', '-7 days'))))
           AND deleted_at IS NULL
+          AND (defer_until IS NULL OR defer_until <= date('now', 'localtime'))
         ORDER BY position ASC
+    """)
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+@app.get("/api/tasks/snoozed")
+def get_snoozed_tasks():
+    # Tasks snoozed into the future (soonest to return first).
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT * FROM tasks
+        WHERE completed = 0
+          AND deleted_at IS NULL
+          AND defer_until IS NOT NULL
+          AND defer_until > date('now', 'localtime')
+        ORDER BY defer_until ASC
     """)
     rows = cursor.fetchall()
     conn.close()
@@ -336,6 +363,17 @@ def update_task(task_id: str, task: TaskUpdate):
         update_fields.append("color = ?")
         params.append(task.color)
 
+    # Snooze: explicit defer_until (a date to snooze, or null to un-snooze/dismiss).
+    defer_explicit = "defer_until" in task.model_fields_set
+    if defer_explicit:
+        update_fields.append("defer_until = ?")
+        params.append(task.defer_until)
+
+    # Scheduling onto a real day acknowledges any snooze/resurfaced state.
+    if "due_date" in task.model_fields_set and task.due_date is not None and not defer_explicit:
+        update_fields.append("defer_until = ?")
+        params.append(None)
+
     if not update_fields:
         conn.close()
         return dict(db_task)
@@ -356,9 +394,12 @@ def reorder_tasks(payload: TaskReorderRequest):
     cursor = conn.cursor()
     try:
         for item in payload.tasks:
+            # Dragging onto a real day also clears any snooze/resurfaced state.
             cursor.execute(
-                "UPDATE tasks SET due_date = ?, position = ? WHERE id = ?",
-                (item.due_date, item.position, item.id)
+                """UPDATE tasks SET due_date = ?, position = ?,
+                       defer_until = CASE WHEN ? IS NOT NULL THEN NULL ELSE defer_until END
+                   WHERE id = ?""",
+                (item.due_date, item.position, item.due_date, item.id)
             )
         conn.commit()
     except Exception as e:

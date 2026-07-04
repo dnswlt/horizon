@@ -9,6 +9,10 @@ const backlogTasksContainer = document.getElementById('backlog-tasks-container')
 const backlogDropzone = document.getElementById('backlog-dropzone');
 const backlogCounter = document.getElementById('backlog-counter');
 const backlogEmptyMsg = document.getElementById('backlog-empty-msg');
+const snoozedStrip = document.getElementById('snoozed-strip');
+const snoozedStripHeader = document.getElementById('snoozed-strip-header');
+const snoozedList = document.getElementById('snoozed-list');
+const snoozedCounter = document.getElementById('snoozed-counter');
 const taskModal = document.getElementById('task-modal');
 const taskForm = document.getElementById('task-form');
 const modalTitle = document.getElementById('modal-title');
@@ -190,6 +194,7 @@ async function fetchTasks() {
         if (!res.ok) throw new Error('Failed to load tasks');
         tasks = await res.json();
         renderTasks();
+        fetchSnoozedTasks();
     } catch (err) {
         showToast(err.message, 'error');
     }
@@ -315,14 +320,40 @@ function createCardElement(task) {
         }
     }
 
+    // Resurfaced badge: a snoozed task whose defer_until date has arrived
+    const today = getLocalDateString(0);
+    const isResurfaced = task.defer_until && task.defer_until <= today && !task.completed;
+    const resurfacedBadge = isResurfaced
+        ? `<div class="card-resurfaced-badge" title="Back from snooze">
+                <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="9 14 4 9 9 4"></polyline>
+                    <path d="M20 20v-7a4 4 0 0 0-4-4H4"></path>
+                </svg>
+                <span>Back</span>
+                <span class="card-resurfaced-dismiss" title="Dismiss">&times;</span>
+           </div>`
+        : '';
+
+    // Snooze button (active tasks only)
+    const snoozeBtn = !task.completed
+        ? `<button class="action-btn snooze-btn" title="Snooze">
+                <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="9"></circle>
+                    <polyline points="12 8 12 12 15 14"></polyline>
+                </svg>
+           </button>`
+        : '';
+
     card.innerHTML = `
         <div class="card-header">
             <div class="card-title-container">
                 <input type="checkbox" class="card-checkbox" ${task.completed ? 'checked' : ''}>
                 <span class="card-title">${escapeHTML(task.title)}</span>
                 ${dateBadge}
+                ${resurfacedBadge}
             </div>
             <div class="card-actions">
+                ${snoozeBtn}
                 <button class="action-btn edit-btn" title="Edit task">
                     <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
@@ -365,9 +396,27 @@ function createCardElement(task) {
         }
     });
 
+    // Snooze button → open preset popover
+    const snoozeBtnEl = card.querySelector('.snooze-btn');
+    if (snoozeBtnEl) {
+        snoozeBtnEl.addEventListener('click', (e) => {
+            e.stopPropagation();
+            openSnoozePopover(snoozeBtnEl, task);
+        });
+    }
+
+    // Resurfaced badge dismiss → acknowledge (clear defer_until)
+    const dismissEl = card.querySelector('.card-resurfaced-dismiss');
+    if (dismissEl) {
+        dismissEl.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            await unsnoozeTask(task.id, false);
+        });
+    }
+
     // Double click card to edit
     card.addEventListener('dblclick', (e) => {
-        if (e.target.closest('.card-actions') || e.target.closest('.card-checkbox')) {
+        if (e.target.closest('.card-actions') || e.target.closest('.card-checkbox') || e.target.closest('.card-resurfaced-badge')) {
             return;
         }
         openModal(task);
@@ -420,6 +469,173 @@ async function deleteTask(id) {
     } catch (err) {
         showToast(err.message, 'error');
     }
+}
+
+// ===== Snooze / defer =====
+
+// Format a YYYY-MM-DD string as a short local date, e.g. "Jul 20"
+function formatShortDate(dateStr) {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+// Date string of the next occurrence (strictly future) of a weekday (0=Sun..6=Sat)
+function nextWeekdayDateString(targetDow) {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    let delta = (targetDow - d.getDay() + 7) % 7;
+    if (delta === 0) delta = 7;
+    d.setDate(d.getDate() + delta);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function nextMonthDateString() {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    d.setMonth(d.getMonth() + 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+let snoozePopoverEl = null;
+
+function closeSnoozePopover() {
+    if (snoozePopoverEl) {
+        snoozePopoverEl.remove();
+        snoozePopoverEl = null;
+        document.removeEventListener('click', onSnoozeOutsideClick, true);
+    }
+}
+
+function onSnoozeOutsideClick(e) {
+    if (snoozePopoverEl && !snoozePopoverEl.contains(e.target)) {
+        closeSnoozePopover();
+    }
+}
+
+function openSnoozePopover(anchorEl, task) {
+    closeSnoozePopover();
+
+    const presets = [
+        { label: 'Tomorrow', date: getLocalDateString(1) },
+        { label: 'This weekend', date: nextWeekdayDateString(6) },
+        { label: 'Next week', date: nextWeekdayDateString(1) },
+        { label: 'In 2 weeks', date: getLocalDateString(14) },
+        { label: 'Next month', date: nextMonthDateString() },
+    ];
+
+    const pop = document.createElement('div');
+    pop.className = 'snooze-popover';
+    pop.innerHTML = `
+        <div class="snooze-popover-title">Snooze until…</div>
+        ${presets.map(p => `
+            <button type="button" class="snooze-preset" data-date="${p.date}">
+                <span>${p.label}</span>
+                <span class="snooze-preset-date">${formatShortDate(p.date)}</span>
+            </button>`).join('')}
+        <label class="snooze-custom">
+            <input type="date" class="snooze-custom-input" min="${getLocalDateString(1)}">
+        </label>
+    `;
+    document.body.appendChild(pop);
+    snoozePopoverEl = pop;
+
+    // Position below the anchor, right-aligned, clamped to the viewport
+    const rect = anchorEl.getBoundingClientRect();
+    const popRect = pop.getBoundingClientRect();
+    let left = rect.right + window.scrollX - popRect.width;
+    if (left < 8) left = 8;
+    pop.style.left = `${left}px`;
+    pop.style.top = `${rect.bottom + window.scrollY + 6}px`;
+
+    pop.querySelectorAll('.snooze-preset').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const date = btn.getAttribute('data-date');
+            closeSnoozePopover();
+            await snoozeTask(task, date);
+        });
+    });
+
+    const customInput = pop.querySelector('.snooze-custom-input');
+    customInput.addEventListener('change', async (e) => {
+        e.stopPropagation();
+        if (customInput.value) {
+            closeSnoozePopover();
+            await snoozeTask(task, customInput.value);
+        }
+    });
+
+    // Bind outside-click on the next tick so the opening click doesn't close it
+    setTimeout(() => document.addEventListener('click', onSnoozeOutsideClick, true), 0);
+}
+
+async function snoozeTask(task, dateString) {
+    try {
+        const res = await fetch(`/api/tasks/${task.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ defer_until: dateString, due_date: null })
+        });
+        if (!res.ok) throw new Error('Failed to snooze task');
+        await fetchTasks();
+        showToast(`Snoozed until ${formatShortDate(dateString)}.`);
+    } catch (err) {
+        showToast(err.message, 'error');
+    }
+}
+
+// notify=false is used for the resurfaced-badge dismiss (silent acknowledge)
+async function unsnoozeTask(id, notify = true) {
+    try {
+        const res = await fetch(`/api/tasks/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ defer_until: null })
+        });
+        if (!res.ok) throw new Error('Failed to un-snooze task');
+        await fetchTasks();
+        if (notify) showToast('Task returned to backlog.');
+    } catch (err) {
+        showToast(err.message, 'error');
+    }
+}
+
+async function fetchSnoozedTasks() {
+    try {
+        const res = await fetch('/api/tasks/snoozed');
+        if (!res.ok) throw new Error('Failed to load snoozed tasks');
+        renderSnoozedStrip(await res.json());
+    } catch (err) {
+        console.error(err);
+    }
+}
+
+function renderSnoozedStrip(snoozed) {
+    if (!snoozed.length) {
+        snoozedStrip.style.display = 'none';
+        snoozedList.innerHTML = '';
+        return;
+    }
+    snoozedStrip.style.display = 'block';
+    snoozedCounter.textContent = snoozed.length;
+
+    snoozedList.innerHTML = '';
+    snoozed.forEach(task => {
+        const row = document.createElement('div');
+        row.className = 'snoozed-row';
+        row.innerHTML = `
+            <div class="snoozed-row-info">
+                <span class="snoozed-row-title">${escapeHTML(task.title)}</span>
+                <span class="snoozed-row-until">until ${formatShortDate(task.defer_until)}</span>
+            </div>
+            <button type="button" class="btn btn-secondary snoozed-unsnooze-btn" data-id="${task.id}">Un-snooze</button>
+        `;
+        row.querySelector('.snoozed-unsnooze-btn').addEventListener('click', async (e) => {
+            e.stopPropagation();
+            await unsnoozeTask(task.id);
+        });
+        snoozedList.appendChild(row);
+    });
 }
 
 // Drag and Drop Logic
@@ -771,6 +987,13 @@ function setupEventListeners() {
     addBtn.addEventListener('click', () => openModal());
     modalCloseBtn.addEventListener('click', closeModal);
     modalCancelBtn.addEventListener('click', closeModal);
+
+    // Expand/collapse the snoozed strip
+    snoozedStripHeader.addEventListener('click', () => {
+        const expanded = snoozedStrip.classList.toggle('expanded');
+        snoozedList.style.display = expanded ? 'flex' : 'none';
+        snoozedStripHeader.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    });
 
     // Live-update the clickable links strip as the description changes
     taskDescInput.addEventListener('input', renderDescLinks);
