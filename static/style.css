@@ -1013,93 +1013,6 @@ textarea {
     background: rgba(99, 102, 241, 0.35);
 }
 
-/* Color Picker in Modal */
-.color-picker-container {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    margin-top: 0.5rem;
-}
-
-.btn-color-dot {
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    cursor: pointer;
-    outline: none;
-    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
-    padding: 0;
-    box-sizing: border-box;
-}
-
-/* Default color: empty circle */
-.btn-color-dot[data-color=""] {
-    background: transparent;
-    border: 2px dashed var(--text-muted);
-}
-.btn-color-dot[data-color=""]:hover {
-    border-color: var(--text-secondary);
-    transform: scale(1.1);
-}
-.btn-color-dot[data-color=""].active {
-    border: 2px solid var(--text-primary);
-    transform: scale(1.15);
-    box-shadow: 0 0 8px rgba(255, 255, 255, 0.2);
-}
-
-/* Colors styling */
-.btn-color-dot.color-red {
-    background: #ef4444;
-    border: 2px solid transparent;
-}
-.btn-color-dot.color-green {
-    background: #10b981;
-    border: 2px solid transparent;
-}
-.btn-color-dot.color-blue {
-    background: #3b82f6;
-    border: 2px solid transparent;
-}
-.btn-color-dot.color-yellow {
-    background: #f59e0b;
-    border: 2px solid transparent;
-}
-.btn-color-dot.color-purple {
-    background: #8b5cf6;
-    border: 2px solid transparent;
-}
-
-/* Color dot states */
-.btn-color-dot:not([data-color=""]):hover {
-    transform: scale(1.1);
-}
-
-.btn-color-dot.color-red.active {
-    border-color: var(--text-primary);
-    transform: scale(1.15);
-    box-shadow: 0 0 10px rgba(239, 68, 68, 0.6);
-}
-.btn-color-dot.color-green.active {
-    border-color: var(--text-primary);
-    transform: scale(1.15);
-    box-shadow: 0 0 10px rgba(16, 185, 129, 0.6);
-}
-.btn-color-dot.color-blue.active {
-    border-color: var(--text-primary);
-    transform: scale(1.15);
-    box-shadow: 0 0 10px rgba(59, 130, 246, 0.6);
-}
-.btn-color-dot.color-yellow.active {
-    border-color: var(--text-primary);
-    transform: scale(1.15);
-    box-shadow: 0 0 10px rgba(245, 158, 11, 0.6);
-}
-.btn-color-dot.color-purple.active {
-    border-color: var(--text-primary);
-    transform: scale(1.15);
-    box-shadow: 0 0 10px rgba(139, 92, 246, 0.6);
-}
-
 /* Card Colors styling */
 .task-card.color-red {
     border-left: 4px solid #ef4444;
@@ -1196,8 +1109,23 @@ textarea {
     text-transform: uppercase;
     letter-spacing: 0.05em;
     color: var(--text-muted);
-    margin: 0.25rem 0 0.75rem 0;
+    margin: 0.25rem 0 0.4rem 0;
     font-weight: 600;
+}
+
+.settings-hint {
+    font-size: 0.72rem;
+    line-height: 1.4;
+    color: var(--text-muted);
+    margin: 0 0 0.75rem 0;
+}
+
+.settings-hint code {
+    font-size: 0.7rem;
+    padding: 0.05rem 0.25rem;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-secondary);
 }
 
 .color-label-row {
@@ -1220,8 +1148,9 @@ textarea {
 .color-dot-indicator.color-yellow { background: #f59e0b; }
 .color-dot-indicator.color-purple { background: #8b5cf6; }
 
-.color-label-input {
+.context-input {
     flex-grow: 1;
+    min-width: 0;
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
@@ -1232,7 +1161,7 @@ textarea {
     transition: all var(--transition-fast);
 }
 
-.color-label-input:focus {
+.context-input:focus {
     border-color: var(--purple-accent);
     background: rgba(255, 255, 255, 0.06);
 }

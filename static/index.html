@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css?v=14">
+    <link rel="stylesheet" href="/static/style.css?v=17">
 </head>
 <body>
     <!-- App Container -->
@@ -82,26 +82,27 @@
                             <span>Show Completed</span>
                         </button>
                         <div class="color-labels-settings">
-                            <h3>Color Labels</h3>
+                            <h3>Contexts</h3>
+                            <p class="settings-hint">Tag a task with <code>@keyword</code> in its title or description to paint it a color.</p>
                             <div class="color-label-row">
                                 <span class="color-dot-indicator color-red"></span>
-                                <input type="text" class="color-label-input" data-color="red" placeholder="Red label...">
+                                <input type="text" class="context-input" data-color="red" placeholder="e.g. urgent">
                             </div>
                             <div class="color-label-row">
                                 <span class="color-dot-indicator color-green"></span>
-                                <input type="text" class="color-label-input" data-color="green" placeholder="Green label...">
+                                <input type="text" class="context-input" data-color="green" placeholder="e.g. review">
                             </div>
                             <div class="color-label-row">
                                 <span class="color-dot-indicator color-blue"></span>
-                                <input type="text" class="color-label-input" data-color="blue" placeholder="Blue label...">
+                                <input type="text" class="context-input" data-color="blue" placeholder="e.g. work">
                             </div>
                             <div class="color-label-row">
                                 <span class="color-dot-indicator color-yellow"></span>
-                                <input type="text" class="color-label-input" data-color="yellow" placeholder="Yellow label...">
+                                <input type="text" class="context-input" data-color="yellow" placeholder="e.g. waiting">
                             </div>
                             <div class="color-label-row">
                                 <span class="color-dot-indicator color-purple"></span>
-                                <input type="text" class="color-label-input" data-color="purple" placeholder="Purple label...">
+                                <input type="text" class="context-input" data-color="purple" placeholder="e.g. home">
                             </div>
                         </div>
                     </div>
@@ -257,7 +258,8 @@
                     </svg>
                 </button>
             </div>
-            <form id="task-form">
+            <!-- novalidate is used to bypass a Safari bug where programmatically clearing the date input leaves it internally invalid and silently blocks submission -->
+            <form id="task-form" novalidate>
                 <input type="hidden" id="task-id-field">
                 
                 <div class="form-group">
@@ -284,19 +286,6 @@
                     </div>
                 </div>
 
-                <div class="form-row">
-                    <div class="form-group">
-                        <div class="color-picker-container" id="task-color-picker">
-                            <button type="button" class="btn-color-dot active" data-color="" title="Default"></button>
-                            <button type="button" class="btn-color-dot color-red" data-color="red" title="Red"></button>
-                            <button type="button" class="btn-color-dot color-green" data-color="green" title="Green"></button>
-                            <button type="button" class="btn-color-dot color-blue" data-color="blue" title="Blue"></button>
-                            <button type="button" class="btn-color-dot color-yellow" data-color="yellow" title="Yellow"></button>
-                            <button type="button" class="btn-color-dot color-purple" data-color="purple" title="Purple"></button>
-                        </div>
-                    </div>
-                </div>
-
                 <div class="modal-actions">
                     <button type="button" class="btn btn-secondary" id="modal-cancel-btn">Cancel</button>
                     <button type="submit" class="btn btn-primary" id="modal-submit-btn">Save Task</button>
@@ -308,6 +297,6 @@
     <!-- Toast Notifications -->
     <div id="toast-container"></div>
 
-    <script src="/static/app.js?v=14"></script>
+    <script src="/static/app.js?v=17"></script>
 </body>
 </html>

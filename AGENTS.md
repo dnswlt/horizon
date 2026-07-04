@@ -50,10 +50,15 @@ like Jira and Trello tiring to use.
 Columns of note: `id` (uuid), `title`, `description`, `due_date`
 (`YYYY-MM-DD` or NULL = backlog), `position` (order within a lane),
 `completed` with `completed_at`, `deleted_at` (soft delete),
-`color` (red/green/blue/yellow/purple or NULL), and `created_at`.
+`defer_until` (snooze date), and `created_at`.
 
-There is also a `settings` key-value table for app preferences (e.g. color
-labels), stored as JSON strings.
+Tasks have **no color column**. A card's color is derived on the client from
+the first configured `@keyword`/`#keyword` context token in its title or
+description (see the `contexts` setting below).
+
+There is also a `settings` key-value table for app preferences, stored as JSON
+strings. The `contexts` entry maps each palette color to a context keyword
+(e.g. `{"red": "urgent", "blue": "work", ...}`).
 
 ## Conventions (important for correct changes)
 
@@ -65,7 +70,7 @@ labels), stored as JSON strings.
   `escapeHTML()` helper. The app builds HTML via template strings, so this is
   the XSS boundary — never interpolate raw task text.
 - **Persist preferences server-side, not in `localStorage`.** User settings
-  (like color labels) live in the `settings` table via `/api/settings/*`, so
+  (like context keywords) live in the `settings` table via `/api/settings/*`, so
   they survive across browsers and devices. Don't reach for `localStorage` for
   anything that should persist.
 - **The schema self-migrates.** `init_db()` adds missing columns on startup via

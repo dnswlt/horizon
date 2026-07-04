@@ -50,75 +50,98 @@ let archiveOffset = 0;
 let deletedOffset = 0;
 const PAGE_SIZE = 50;
 
-// Color selection state
-let selectedColor = null;
-
 // Search state
 let searchIncludeDone = true;
 let searchTimer = null;
 
-// Color labels state (defaults; overwritten by server values on load)
-let colorLabels = {
-    red: 'Red',
-    green: 'Green',
-    blue: 'Blue',
-    yellow: 'Yellow',
-    purple: 'Purple'
+// Contexts state: maps each palette color to a context keyword (e.g.
+// { red: 'urgent', blue: 'work', ... }). A task is painted a color when its
+// text mentions the matching @keyword/#keyword. Overwritten by server on load.
+let contexts = {
+    red: 'urgent',
+    green: 'review',
+    blue: 'work',
+    yellow: 'waiting',
+    purple: 'home'
 };
+// Reverse lookup keyword(lowercased) -> color, rebuilt whenever contexts change.
+let contextColorMap = {};
+
+function rebuildContextColorMap() {
+    contextColorMap = {};
+    for (const [color, keyword] of Object.entries(contexts)) {
+        const key = (keyword || '').trim().toLowerCase();
+        if (key) contextColorMap[key] = color;
+    }
+}
+
+// Derive a task's color from the first configured @context/#context token in
+// its title or description. Returns a color name or null.
+function deriveColor(task) {
+    const text = `${task.title || ''} ${task.description || ''}`;
+    const re = /[@#]([\w-]+)/g;
+    let m;
+    while ((m = re.exec(text)) !== null) {
+        const color = contextColorMap[m[1].toLowerCase()];
+        if (color) return color;
+    }
+    return null;
+}
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
     calculateWorkdays();
     renderColumnsStructure();
     renderQuickDateButtons();
-    updateColorDotTooltips();
-    
+    rebuildContextColorMap();
+
     // Set up toggle initial state
     if (showCompleted) {
         toggleCompletedBtn.classList.add('active');
     }
-    
+
+    fetchContexts();
     fetchTasks();
-    fetchColorLabels();
     setupEventListeners();
 });
 
-// Load color labels from the server and reflect them in the UI
-async function fetchColorLabels() {
+// Load context configuration from the server and reflect it in the UI
+async function fetchContexts() {
     try {
-        const res = await fetch('/api/settings/color-labels');
-        if (!res.ok) throw new Error('Failed to load color labels');
-        colorLabels = await res.json();
-        applyColorLabelsToInputs();
-        updateColorDotTooltips();
+        const res = await fetch('/api/settings/contexts');
+        if (!res.ok) throw new Error('Failed to load contexts');
+        contexts = await res.json();
+        rebuildContextColorMap();
+        applyContextsToInputs();
+        renderTasks();
     } catch (err) {
         // Fall back silently to defaults; not worth a toast on load.
         console.error(err);
     }
 }
 
-// Sync the settings dropdown inputs with the current colorLabels
-function applyColorLabelsToInputs() {
-    document.querySelectorAll('.color-label-input').forEach(input => {
+// Sync the settings dropdown inputs with the current contexts
+function applyContextsToInputs() {
+    document.querySelectorAll('.context-input').forEach(input => {
         const color = input.getAttribute('data-color');
-        if (color && colorLabels[color]) {
-            input.value = colorLabels[color];
+        if (color && contexts[color] !== undefined) {
+            input.value = contexts[color];
         }
     });
 }
 
-// Persist color labels to the server (debounced)
-let colorLabelsSaveTimer = null;
-function saveColorLabels() {
-    clearTimeout(colorLabelsSaveTimer);
-    colorLabelsSaveTimer = setTimeout(async () => {
+// Persist contexts to the server (debounced)
+let contextsSaveTimer = null;
+function saveContexts() {
+    clearTimeout(contextsSaveTimer);
+    contextsSaveTimer = setTimeout(async () => {
         try {
-            const res = await fetch('/api/settings/color-labels', {
+            const res = await fetch('/api/settings/contexts', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(colorLabels)
+                body: JSON.stringify(contexts)
             });
-            if (!res.ok) throw new Error('Failed to save color labels');
+            if (!res.ok) throw new Error('Failed to save contexts');
         } catch (err) {
             showToast(err.message, 'error');
         }
@@ -275,7 +298,8 @@ function renderTasks() {
 // DOM Helper: Create task card element
 function createCardElement(task) {
     const card = document.createElement('div');
-    card.className = `task-card ${task.completed ? 'completed' : ''} ${task.color ? 'color-' + task.color : ''}`;
+    const cardColor = deriveColor(task);
+    card.className = `task-card ${task.completed ? 'completed' : ''} ${cardColor ? 'color-' + cardColor : ''}`;
     card.draggable = true;
     card.dataset.id = task.id;
     
@@ -821,46 +845,18 @@ function openModal(task = null) {
         taskDescInput.value = task.description || '';
         
         taskDateSelect.value = task.due_date || '';
-        selectedColor = task.color || null;
     } else {
         // Add mode
         modalTitle.textContent = 'Create Task';
         taskIdField.value = '';
         taskForm.reset();
         taskDateSelect.value = ''; // Default to backlog
-        selectedColor = null;
     }
-    
+
     updateQuickDateActiveHighlight();
-    updateColorPickerActiveHighlight();
-    updateColorDotTooltips();
     renderDescLinks();
     taskModal.classList.add('active');
     taskTitleInput.focus();
-}
-
-function updateColorPickerActiveHighlight() {
-    const dots = document.querySelectorAll('#task-color-picker .btn-color-dot');
-    dots.forEach(dot => {
-        const c = dot.getAttribute('data-color') || null;
-        if (c === selectedColor) {
-            dot.classList.add('active');
-        } else {
-            dot.classList.remove('active');
-        }
-    });
-}
-
-function updateColorDotTooltips() {
-    const dots = document.querySelectorAll('#task-color-picker .btn-color-dot');
-    dots.forEach(dot => {
-        const color = dot.getAttribute('data-color');
-        if (color) {
-            dot.title = colorLabels[color] || (color.charAt(0).toUpperCase() + color.slice(1));
-        } else {
-            dot.title = 'Default';
-        }
-    });
 }
 
 function closeModal() {
@@ -919,6 +915,12 @@ function updateQuickDateActiveHighlight() {
 taskForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     
+    // Explicitly validate taskTitleInput since the form has 'novalidate' to bypass Safari's
+    // date validation bug (setting date value = '' programmatically leaves the input in an invalid state).
+    if (!taskTitleInput.reportValidity()) {
+        return;
+    }
+    
     const id = taskIdField.value;
     const title = taskTitleInput.value.trim();
     const description = taskDescInput.value.trim();
@@ -948,8 +950,7 @@ taskForm.addEventListener('submit', async (e) => {
                 body: JSON.stringify({
                     title,
                     description,
-                    due_date: dueDate,
-                    color: selectedColor
+                    due_date: dueDate
                 })
             });
             if (!res.ok) throw new Error('Failed to update task');
@@ -963,8 +964,7 @@ taskForm.addEventListener('submit', async (e) => {
                     title,
                     description,
                     due_date: dueDate,
-                    position,
-                    color: selectedColor
+                    position
                 })
             });
             if (!res.ok) throw new Error('Failed to create task');
@@ -1019,17 +1019,6 @@ function setupEventListeners() {
     // Synchronize custom date picker manual input changes
     taskDateSelect.addEventListener('input', updateQuickDateActiveHighlight);
 
-    // Color picker dot selector
-    const colorPickerContainer = document.getElementById('task-color-picker');
-    if (colorPickerContainer) {
-        colorPickerContainer.addEventListener('click', (e) => {
-            const btn = e.target.closest('.btn-color-dot');
-            if (!btn) return;
-            selectedColor = btn.getAttribute('data-color') || null;
-            updateColorPickerActiveHighlight();
-        });
-    }
-    
     // Toggle completed state button click
     toggleCompletedBtn.addEventListener('click', () => {
         showCompleted = !showCompleted;
@@ -1063,18 +1052,18 @@ function setupEventListeners() {
         });
     }
 
-    // Populate and bind color label inputs
-    document.querySelectorAll('.color-label-input').forEach(input => {
+    // Populate and bind context keyword inputs
+    document.querySelectorAll('.context-input').forEach(input => {
         const color = input.getAttribute('data-color');
-        if (color && colorLabels[color]) {
-            input.value = colorLabels[color];
+        if (color && contexts[color] !== undefined) {
+            input.value = contexts[color];
         }
-        
+
         input.addEventListener('input', (e) => {
-            const val = e.target.value.trim();
-            colorLabels[color] = val || (color.charAt(0).toUpperCase() + color.slice(1));
-            saveColorLabels();
-            updateColorDotTooltips();
+            contexts[color] = e.target.value.trim();
+            rebuildContextColorMap();
+            saveContexts();
+            renderTasks();
         });
     });
     
@@ -1209,7 +1198,8 @@ function renderSearchResults(results) {
 
     results.forEach(task => {
         const item = document.createElement('div');
-        item.className = `archive-item ${task.color ? 'color-' + task.color : ''}`;
+        const itemColor = deriveColor(task);
+        item.className = `archive-item -e`;
 
         const descHtml = task.description ? `<p class="archive-item-desc">${escapeHTML(task.description)}</p>` : '';
 
@@ -1282,7 +1272,8 @@ function renderArchivedTasks(archivedTasks, append = false) {
     
     archivedTasks.forEach(task => {
         const item = document.createElement('div');
-        item.className = `archive-item ${task.color ? 'color-' + task.color : ''}`;
+        const itemColor = deriveColor(task);
+        item.className = `archive-item -e`;
         
         let completedDateFormatted = 'recently';
         if (task.completed_at) {
@@ -1384,7 +1375,8 @@ function renderDeletedTasks(deletedTasks, append = false) {
     
     deletedTasks.forEach(task => {
         const item = document.createElement('div');
-        item.className = `archive-item ${task.color ? 'color-' + task.color : ''}`;
+        const itemColor = deriveColor(task);
+        item.className = `archive-item -e`;
         
         let deletedDateFormatted = 'recently';
         if (task.deleted_at) {
