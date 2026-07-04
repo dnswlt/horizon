@@ -15,6 +15,7 @@ const modalTitle = document.getElementById('modal-title');
 const taskIdField = document.getElementById('task-id-field');
 const taskTitleInput = document.getElementById('task-title');
 const taskDescInput = document.getElementById('task-description');
+const descLinks = document.getElementById('desc-links');
 const taskDateSelect = document.getElementById('task-date');
 const addBtn = document.getElementById('add-task-btn');
 const modalCloseBtn = document.getElementById('modal-close-btn');
@@ -617,6 +618,7 @@ function openModal(task = null) {
     updateQuickDateActiveHighlight();
     updateColorPickerActiveHighlight();
     updateColorDotTooltips();
+    renderDescLinks();
     taskModal.classList.add('active');
     taskTitleInput.focus();
 }
@@ -769,6 +771,9 @@ function setupEventListeners() {
     addBtn.addEventListener('click', () => openModal());
     modalCloseBtn.addEventListener('click', closeModal);
     modalCancelBtn.addEventListener('click', closeModal);
+
+    // Live-update the clickable links strip as the description changes
+    taskDescInput.addEventListener('input', renderDescLinks);
     
     // Clear date button
     const clearDateBtn = document.getElementById('clear-date-btn');
@@ -1266,6 +1271,57 @@ function showToast(message, type = 'success') {
 }
 
 // Utility: Escape HTML to prevent XSS
+// Extract http(s) URLs from text, trimming trailing sentence punctuation and
+// unbalanced closing brackets (e.g. a URL wrapped in parentheses).
+function extractLinks(text) {
+    const urlRegex = /https?:\/\/[^\s<]+/g;
+    const urls = [];
+    let m;
+    while ((m = urlRegex.exec(text)) !== null) {
+        let url = m[0];
+        let changed = true;
+        while (changed && url) {
+            changed = false;
+            const c = url[url.length - 1];
+            if ('.,;:!?\'"'.includes(c)) {
+                url = url.slice(0, -1);
+                changed = true;
+            } else if (')]}'.includes(c)) {
+                const open = c === ')' ? '(' : c === ']' ? '[' : '{';
+                const opens = url.split(open).length - 1;
+                const closes = url.split(c).length - 1;
+                if (closes > opens) {
+                    url = url.slice(0, -1);
+                    changed = true;
+                }
+            }
+        }
+        if (url && !urls.includes(url)) urls.push(url);
+    }
+    return urls;
+}
+
+// Render clickable links found in the description textarea (opens in new tab)
+function renderDescLinks() {
+    const urls = extractLinks(taskDescInput.value);
+    if (urls.length === 0) {
+        descLinks.style.display = 'none';
+        descLinks.innerHTML = '';
+        return;
+    }
+    descLinks.innerHTML = urls.map(url => {
+        const safe = escapeHTML(url);
+        return `<a href="${safe}" class="desc-link" target="_blank" rel="noopener noreferrer" title="${safe}">
+            <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+            </svg>
+            <span class="desc-link-text">${safe}</span>
+        </a>`;
+    }).join('');
+    descLinks.style.display = 'flex';
+}
+
 function escapeHTML(str) {
     return str
         .replace(/&/g, '&amp;')

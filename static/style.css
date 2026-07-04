@@ -1223,6 +1223,44 @@ textarea {
     background: rgba(255, 255, 255, 0.06);
 }
 
+/* Description Links (in edit modal) */
+.desc-links {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    margin-top: 0.6rem;
+}
+
+.desc-link {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    max-width: 100%;
+    padding: 0.3rem 0.55rem;
+    font-size: 0.8rem;
+    color: var(--primary);
+    text-decoration: none;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    background: rgba(255, 255, 255, 0.02);
+    transition: all var(--transition-fast);
+}
+
+.desc-link:hover {
+    border-color: var(--primary);
+    background: rgba(99, 102, 241, 0.08);
+}
+
+.desc-link svg {
+    flex-shrink: 0;
+}
+
+.desc-link-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 /* Search View */
 .search-bar-row {
     display: flex;
