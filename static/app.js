@@ -417,9 +417,8 @@ function createCardElement(task) {
     const deleteBtn = card.querySelector('.delete-btn');
     deleteBtn.addEventListener('click', async (e) => {
         e.stopPropagation();
-        if (confirm('Are you sure you want to delete this task?')) {
-            await deleteTask(task.id);
-        }
+        // No confirmation: deletes are soft (recoverable from Archive → Trash)
+        await deleteTask(task.id);
     });
 
     // Snooze button → open preset popover
@@ -478,6 +477,25 @@ async function toggleTaskCompletion(id, completed, cardEl) {
         showToast(err.message, 'error');
         // Revert checkbox state
         cardEl.querySelector('.card-checkbox').checked = !completed;
+    }
+}
+
+// API: Set completion state and refresh views (used by search results, where
+// there is no card element to toggle in place)
+async function setTaskCompleted(id, completed) {
+    try {
+        const res = await fetch(`/api/tasks/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ completed })
+        });
+        if (!res.ok) throw new Error('Could not update task status');
+
+        showToast(completed ? 'Task completed!' : 'Task reopened.');
+        await fetchTasks();     // keep the Horizon board in sync
+        await performSearch();  // refresh the result's status pill / filtering
+    } catch (err) {
+        showToast(err.message, 'error');
     }
 }
 
@@ -1268,7 +1286,7 @@ function renderSearchResults(results) {
     results.forEach(task => {
         const item = document.createElement('div');
         const itemColor = deriveColor(task);
-        item.className = `archive-item -e`;
+        item.className = `archive-item ${itemColor ? 'color-' + itemColor : ''}`;
 
         const descHtml = task.description ? `<p class="archive-item-desc">${escapeHTML(task.description)}</p>` : '';
 
@@ -1293,7 +1311,12 @@ function renderSearchResults(results) {
             </div>
             <div class="search-item-actions">
                 ${statusPill}
-                <div class="card-actions">
+                <div class="row-actions">
+                    <button class="action-btn complete-btn" title="${task.completed ? 'Reopen task' : 'Mark as done'}">
+                        <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                    </button>
                     <button class="action-btn edit-btn" title="Edit task">
                         <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
@@ -1312,6 +1335,11 @@ function renderSearchResults(results) {
             </div>
         `;
 
+        item.querySelector('.complete-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            setTaskCompleted(task.id, !task.completed);
+        });
+
         item.querySelector('.edit-btn').addEventListener('click', (e) => {
             e.stopPropagation();
             openModal(task);
@@ -1319,10 +1347,15 @@ function renderSearchResults(results) {
 
         item.querySelector('.delete-btn').addEventListener('click', async (e) => {
             e.stopPropagation();
-            if (confirm('Are you sure you want to delete this task?')) {
-                await deleteTask(task.id);
-                performSearch();
-            }
+            // No confirmation: deletes are soft (recoverable from Archive → Trash)
+            await deleteTask(task.id);
+            performSearch();
+        });
+
+        // Double click row to edit (but not when double-clicking an action button)
+        item.addEventListener('dblclick', (e) => {
+            if (e.target.closest('.row-actions')) return;
+            openModal(task);
         });
 
         searchItemsContainer.appendChild(item);

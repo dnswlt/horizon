@@ -1289,8 +1289,10 @@ textarea {
     flex-shrink: 0;
 }
 
-.archive-item:hover .card-actions {
-    opacity: 1;
+.row-actions {
+    display: flex;
+    gap: 0.25rem;
+    flex-shrink: 0;
 }
 
 .search-status-pill {
