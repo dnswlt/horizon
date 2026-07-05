@@ -24,6 +24,10 @@ const taskDateSelect = document.getElementById('task-date');
 const addBtn = document.getElementById('add-task-btn');
 const modalCloseBtn = document.getElementById('modal-close-btn');
 const modalCancelBtn = document.getElementById('modal-cancel-btn');
+const updatesTimeline = document.getElementById('updates-timeline');
+const updatesCount = document.getElementById('updates-count');
+const newUpdateInput = document.getElementById('new-update-input');
+const postUpdateBtn = document.getElementById('post-update-btn');
 const shortcutsModal = document.getElementById('shortcuts-modal');
 const shortcutsList = document.getElementById('shortcuts-list');
 const shortcutsCloseBtn = document.getElementById('shortcuts-close-btn');
@@ -870,14 +874,20 @@ function openModal(task = null) {
         taskIdField.value = task.id;
         taskTitleInput.value = task.title;
         taskDescInput.value = task.description || '';
-        
+
         taskDateSelect.value = task.due_date || '';
+        taskModal.classList.add('mode-edit');
+        loadTaskUpdates(task.id);
     } else {
         // Add mode
         modalTitle.textContent = 'Create Task';
         taskIdField.value = '';
         taskForm.reset();
         taskDateSelect.value = ''; // Default to backlog
+        taskModal.classList.remove('mode-edit');
+        newUpdateInput.value = '';
+        updatesTimeline.innerHTML = '';
+        updatesCount.textContent = '0';
     }
 
     updateQuickDateActiveHighlight();
@@ -888,6 +898,130 @@ function openModal(task = null) {
 
 function closeModal() {
     taskModal.classList.remove('active');
+}
+
+// --- Task updates (the per-task log shown in the edit modal's right rail) ---
+
+async function loadTaskUpdates(taskId) {
+    updatesTimeline.innerHTML = '';
+    newUpdateInput.value = '';
+    try {
+        const res = await fetch(`/api/tasks/${taskId}/updates`);
+        if (!res.ok) throw new Error('Failed to load updates');
+        const data = await res.json();
+        renderUpdates(data.updates);
+    } catch (err) {
+        showToast(err.message, 'error');
+    }
+}
+
+function renderUpdates(updates) {
+    updatesTimeline.innerHTML = '';
+    updates.forEach(u => updatesTimeline.appendChild(createUpdateElement(u)));
+    updatesCount.textContent = String(updates.length);
+}
+
+function createUpdateElement(update) {
+    const isSystem = update.kind === 'system';
+    const el = document.createElement('div');
+    el.className = 'update-entry' + (isSystem ? ' system' : '');
+    el.dataset.id = update.id;
+
+    const meta = document.createElement('div');
+    meta.className = 'update-meta';
+    const time = document.createElement('span');
+    time.textContent = formatTimestamp(update.created_at);
+    meta.appendChild(time);
+    if (!isSystem) {
+        const actions = document.createElement('span');
+        actions.className = 'update-actions';
+        actions.innerHTML = '<button data-act="edit">edit</button><button data-act="delete">delete</button>';
+        meta.appendChild(actions);
+    }
+
+    const body = document.createElement('div');
+    body.className = 'update-body';
+    body.textContent = update.body;
+
+    el.appendChild(meta);
+    el.appendChild(body);
+    return el;
+}
+
+async function postUpdate() {
+    const taskId = taskIdField.value;
+    const body = newUpdateInput.value.trim();
+    if (!taskId || !body) return;
+    try {
+        const res = await fetch(`/api/tasks/${taskId}/updates`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ body })
+        });
+        if (!res.ok) throw new Error('Failed to post update');
+        const created = await res.json();
+        newUpdateInput.value = '';
+        updatesTimeline.insertBefore(createUpdateElement(created), updatesTimeline.firstChild);
+        updatesCount.textContent = String(updatesTimeline.querySelectorAll('.update-entry').length);
+    } catch (err) {
+        showToast(err.message, 'error');
+    }
+}
+
+async function deleteUpdate(id, entry) {
+    if (!confirm('Delete this update? This cannot be undone.')) return;
+    try {
+        const res = await fetch(`/api/updates/${id}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error('Failed to delete update');
+        entry.remove();
+        updatesCount.textContent = String(updatesTimeline.querySelectorAll('.update-entry').length);
+    } catch (err) {
+        showToast(err.message, 'error');
+    }
+}
+
+// Inline-edit an entry in place; original timestamp is preserved server-side.
+function startEditUpdate(id, entry) {
+    if (entry.querySelector('.update-edit-box')) return; // already editing
+    const body = entry.querySelector('.update-body');
+    const original = body.textContent;
+
+    const box = document.createElement('textarea');
+    box.className = 'update-edit-box';
+    box.value = original;
+    const actions = document.createElement('div');
+    actions.className = 'update-edit-actions';
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'btn btn-primary';
+    saveBtn.textContent = 'Save';
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'btn btn-secondary';
+    cancelBtn.textContent = 'Cancel';
+    actions.appendChild(saveBtn);
+    actions.appendChild(cancelBtn);
+
+    body.replaceChildren(box, actions);
+    box.focus();
+
+    const restore = (text) => { body.textContent = text; };
+    cancelBtn.onclick = () => restore(original);
+    saveBtn.onclick = async () => {
+        const text = box.value.trim();
+        if (!text) { restore(original); return; }
+        try {
+            const res = await fetch(`/api/updates/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ body: text })
+            });
+            if (!res.ok) throw new Error('Failed to save update');
+            const edited = await res.json();
+            restore(edited.body);
+        } catch (err) {
+            showToast(err.message, 'error');
+            restore(original);
+        }
+    };
 }
 
 // Quick Date Helpers
@@ -1059,7 +1193,21 @@ function setupEventListeners() {
 
     // Live-update the clickable links strip as the description changes
     taskDescInput.addEventListener('input', renderDescLinks);
-    
+
+    // Task updates: post, plus delegated edit/delete on the timeline
+    postUpdateBtn.addEventListener('click', postUpdate);
+    updatesTimeline.addEventListener('click', (e) => {
+        const btn = e.target.closest('button[data-act]');
+        if (!btn) return;
+        const entry = btn.closest('.update-entry');
+        if (!entry) return;
+        if (btn.dataset.act === 'delete') {
+            deleteUpdate(entry.dataset.id, entry);
+        } else if (btn.dataset.act === 'edit') {
+            startEditUpdate(entry.dataset.id, entry);
+        }
+    });
+
     // Clear date button
     const clearDateBtn = document.getElementById('clear-date-btn');
     clearDateBtn.addEventListener('click', () => {
@@ -1241,19 +1389,25 @@ async function fetchArchivedTasks(replace = false) {
 }
 
 // Format a UTC completed_at string into a short local "Mon D, HH:MM"
-function formatDoneDate(completedAt) {
-    if (!completedAt) return 'recently';
-    let dateStr = completedAt;
+// Format a UTC timestamp (from the DB) as local "Jun 3, 13:33". SQLite emits
+// "YYYY-MM-DD HH:MM:SS" with no zone marker, so we normalise to ISO+Z first.
+function formatTimestamp(ts, fallback = '') {
+    if (!ts) return fallback;
+    let dateStr = ts;
     if (!dateStr.includes('T')) {
         dateStr = dateStr.replace(' ', 'T') + 'Z';
     }
     const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return 'recently';
+    if (isNaN(d.getTime())) return fallback;
     const month = d.toLocaleDateString('en-US', { month: 'short' });
     const day = d.getDate();
     const hours = String(d.getHours()).padStart(2, '0');
     const minutes = String(d.getMinutes()).padStart(2, '0');
     return `${month} ${day}, ${hours}:${minutes}`;
+}
+
+function formatDoneDate(completedAt) {
+    return formatTimestamp(completedAt, 'recently');
 }
 
 // Search Functions

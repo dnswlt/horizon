@@ -28,9 +28,7 @@ def get_db_connection():
     conn.row_factory = sqlite3.Row
     return conn
 
-def init_db():
-    conn = get_db_connection()
-    cursor = conn.cursor()
+def _create_schema(cursor):
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS tasks (
             id TEXT PRIMARY KEY,
@@ -45,7 +43,6 @@ def init_db():
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
         )
     """)
-    conn.commit()
 
     # Key-value settings store (single-user app, so no user scoping)
     cursor.execute("""
@@ -54,74 +51,116 @@ def init_db():
             value TEXT NOT NULL
         )
     """)
-    conn.commit()
 
-    # Dynamic Migration: Check if optional columns exist
+    # Append-only log of updates per task. 'system' entries (e.g. "Task created")
+    # are generated automatically and are not user-editable; 'user' entries are
+    # the manual notes. created_at is UTC (see CURRENT_TIMESTAMP).
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS task_updates (
+            id TEXT PRIMARY KEY,
+            task_id TEXT NOT NULL,
+            body TEXT NOT NULL,
+            kind TEXT NOT NULL DEFAULT 'user', -- 'user' | 'system'
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (task_id) REFERENCES tasks(id)
+        )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_task_updates_task_id ON task_updates(task_id)")
+
+
+def _migrate_schema(cursor):
+    # Add columns that were introduced after the original schema, for DBs created
+    # by earlier versions.
     cursor.execute("PRAGMA table_info(tasks)")
     columns = [col[1] for col in cursor.fetchall()]
     if "completed_at" not in columns:
         cursor.execute("ALTER TABLE tasks ADD COLUMN completed_at TEXT")
-        conn.commit()
     if "deleted_at" not in columns:
         cursor.execute("ALTER TABLE tasks ADD COLUMN deleted_at TEXT")
-        conn.commit()
     if "defer_until" not in columns:
         # Snooze date (YYYY-MM-DD). Future = hidden/snoozed; past-or-today
         # and not NULL = resurfaced; NULL = normal. Orthogonal to due_date.
         cursor.execute("ALTER TABLE tasks ADD COLUMN defer_until TEXT")
-        conn.commit()
 
-    # Data Cleanup: Ensure all completed tasks have a valid completed_at timestamp
+    # Data cleanup: ensure all completed tasks have a valid completed_at timestamp.
     cursor.execute("UPDATE tasks SET completed_at = datetime('now') WHERE completed = 1 AND (completed_at IS NULL OR completed_at = '')")
-    conn.commit()
 
-    # Check if empty to seed
+
+def _backfill_system_updates(cursor):
+    # Give every task a "Task created" system entry if it lacks one, so each
+    # task's log has a floor. Idempotent; covers both seeded and migrated tasks.
+    cursor.execute("""
+        INSERT INTO task_updates (id, task_id, body, kind, created_at)
+        SELECT lower(hex(randomblob(16))), t.id, 'Task created', 'system',
+               COALESCE(t.created_at, datetime('now'))
+        FROM tasks t
+        WHERE NOT EXISTS (
+            SELECT 1 FROM task_updates u WHERE u.task_id = t.id AND u.kind = 'system'
+        )
+    """)
+
+
+def _seed_demo_tasks(cursor):
+    # Demo content for a fresh install only. init_db() calls this exactly once,
+    # when the tasks table is empty — never on subsequent runs.
+    today = datetime.date.today()
+
+    # Find the next 5 workdays (skipping Saturday/Sunday)
+    workdays = []
+    curr = today
+    while len(workdays) < 5:
+        # 0=Mon, 1=Tue, ..., 5=Sat, 6=Sun
+        if curr.weekday() < 5:
+            workdays.append(curr.strftime("%Y-%m-%d"))
+        curr += datetime.timedelta(days=1)
+
+    now_utc = datetime.datetime.now(datetime.timezone.utc)
+    recent_completed = (now_utc - datetime.timedelta(days=2)).strftime("%Y-%m-%d %H:%M:%S")
+    old_completed = (now_utc - datetime.timedelta(days=10)).strftime("%Y-%m-%d %H:%M:%S")
+
+    seed_tasks = [
+        # Day 1
+        (str(uuid.uuid4()), "Sprint Planning Meeting @work", "Discuss scope and priorities for the upcoming sprint with the product team.", workdays[0], 0, 0, None),
+        (str(uuid.uuid4()), "Review PR #412 @review", "Code review for the database migration script and user profile updates.", workdays[0], 1, 1, recent_completed),
+        # Day 2
+        (str(uuid.uuid4()), "Design Session: Drag & Drop UX @work", "Flesh out UI/UX interactions for the kanban workspace.", workdays[1], 0, 0, None),
+        # Day 3
+        (str(uuid.uuid4()), "1on1 with Lead Engineer @waiting", "Bi-weekly catch up on career goals, project progress, and blocker cleanup.", workdays[2], 0, 0, None),
+        (str(uuid.uuid4()), "Draft Q3 Roadmap @urgent", "Prepare slides for the executive review on product strategy.", workdays[2], 1, 0, None),
+        # Day 4
+        (str(uuid.uuid4()), "Refactor Notification Service @work", "Consolidate email and push notification handlers to reduce latency.", workdays[3], 0, 0, None),
+        # Day 5
+        (str(uuid.uuid4()), "Release v1.2.0-rc1 @urgent", "Prepare release notes, tag git commit, and monitor staging logs.", workdays[4], 0, 0, None),
+        # Backlog
+        (str(uuid.uuid4()), "Upgrade Python to 3.12 @home", "Explore performance benefits and new syntax features.", None, 0, 0, None),
+        (str(uuid.uuid4()), "Optimize SQLite index size @review", "Analyze queries and prune unused indexes to optimize disk usage.", None, 1, 0, None),
+        (str(uuid.uuid4()), "Write integration tests for Auth flow @work", "Ensure user sessions expire correctly and token renewal behaves as expected.", None, 2, 0, None),
+        (str(uuid.uuid4()), "Revamp onboarding documentation @home", "Add code examples and quickstart instructions to the wiki.", None, 3, 0, None),
+        # Archived Completed Tasks
+        (str(uuid.uuid4()), "Clean up deprecated API v1 routes", "Deleted unused endpoints and updated API gateway configuration.", None, 4, 1, old_completed),
+        (str(uuid.uuid4()), "Fix memory leak in websocket controller @urgent", "Identified and patched a listener leak causing heap growth.", workdays[0], 2, 1, old_completed),
+    ]
+
+    cursor.executemany(
+        "INSERT INTO tasks (id, title, description, due_date, position, completed, completed_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        seed_tasks
+    )
+
+
+def init_db():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    _create_schema(cursor)
+    _migrate_schema(cursor)
+
     cursor.execute("SELECT COUNT(*) FROM tasks")
     if cursor.fetchone()[0] == 0:
-        # Seed initial tasks
-        today = datetime.date.today()
-        
-        # Helper to find workdays (skipping Saturday/Sunday)
-        workdays = []
-        curr = today
-        while len(workdays) < 5:
-            # 0=Mon, 1=Tue, ..., 5=Sat, 6=Sun
-            if curr.weekday() < 5:
-                workdays.append(curr.strftime("%Y-%m-%d"))
-            curr += datetime.timedelta(days=1)
+        _seed_demo_tasks(cursor)
 
-        now_utc = datetime.datetime.now(datetime.timezone.utc)
-        recent_completed = (now_utc - datetime.timedelta(days=2)).strftime("%Y-%m-%d %H:%M:%S")
-        old_completed = (now_utc - datetime.timedelta(days=10)).strftime("%Y-%m-%d %H:%M:%S")
+    _backfill_system_updates(cursor)
 
-        seed_tasks = [
-            # Day 1
-            (str(uuid.uuid4()), "Sprint Planning Meeting @work", "Discuss scope and priorities for the upcoming sprint with the product team.", workdays[0], 0, 0, None),
-            (str(uuid.uuid4()), "Review PR #412 @review", "Code review for the database migration script and user profile updates.", workdays[0], 1, 1, recent_completed),
-            # Day 2
-            (str(uuid.uuid4()), "Design Session: Drag & Drop UX @work", "Flesh out UI/UX interactions for the kanban workspace.", workdays[1], 0, 0, None),
-            # Day 3
-            (str(uuid.uuid4()), "1on1 with Lead Engineer @waiting", "Bi-weekly catch up on career goals, project progress, and blocker cleanup.", workdays[2], 0, 0, None),
-            (str(uuid.uuid4()), "Draft Q3 Roadmap @urgent", "Prepare slides for the executive review on product strategy.", workdays[2], 1, 0, None),
-            # Day 4
-            (str(uuid.uuid4()), "Refactor Notification Service @work", "Consolidate email and push notification handlers to reduce latency.", workdays[3], 0, 0, None),
-            # Day 5
-            (str(uuid.uuid4()), "Release v1.2.0-rc1 @urgent", "Prepare release notes, tag git commit, and monitor staging logs.", workdays[4], 0, 0, None),
-            # Backlog
-            (str(uuid.uuid4()), "Upgrade Python to 3.12 @home", "Explore performance benefits and new syntax features.", None, 0, 0, None),
-            (str(uuid.uuid4()), "Optimize SQLite index size @review", "Analyze queries and prune unused indexes to optimize disk usage.", None, 1, 0, None),
-            (str(uuid.uuid4()), "Write integration tests for Auth flow @work", "Ensure user sessions expire correctly and token renewal behaves as expected.", None, 2, 0, None),
-            (str(uuid.uuid4()), "Revamp onboarding documentation @home", "Add code examples and quickstart instructions to the wiki.", None, 3, 0, None),
-            # Archived Completed Tasks
-            (str(uuid.uuid4()), "Clean up deprecated API v1 routes", "Deleted unused endpoints and updated API gateway configuration.", None, 4, 1, old_completed),
-            (str(uuid.uuid4()), "Fix memory leak in websocket controller @urgent", "Identified and patched a listener leak causing heap growth.", workdays[0], 2, 1, old_completed),
-        ]
-
-        cursor.executemany(
-            "INSERT INTO tasks (id, title, description, due_date, position, completed, completed_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            seed_tasks
-        )
-        conn.commit()
+    conn.commit()
     conn.close()
 
 # Initialize DB
@@ -144,6 +183,12 @@ class TaskUpdate(BaseModel):
     completed: Optional[bool] = None
     deleted: Optional[bool] = None
     defer_until: Optional[str] = None
+
+class UpdateCreate(BaseModel):
+    body: str
+
+class UpdateEdit(BaseModel):
+    body: str
 
 class TaskReorderItem(BaseModel):
     id: str
@@ -238,8 +283,10 @@ def _like_escape(term: str) -> str:
 
 @app.get("/api/tasks/search")
 def search_tasks(q: str = "", include_done: bool = True, limit: int = 100):
-    # Each whitespace-separated word must appear in the title or description
-    # (case-insensitive). Deleted tasks are never returned.
+    # Each whitespace-separated word must appear in the title, the description,
+    # or any of the task's user updates (case-insensitive; SQLite's LIKE already
+    # folds ASCII case, so no LOWER() is needed). System updates (e.g. "Task
+    # created") are excluded so they never match. Deleted tasks are never returned.
     words = q.split()
     if not words:
         return {"tasks": []}
@@ -249,9 +296,18 @@ def search_tasks(q: str = "", include_done: bool = True, limit: int = 100):
     if not include_done:
         clauses.append("completed = 0")
     for word in words:
-        clauses.append("(LOWER(title) LIKE ? ESCAPE '\\' OR LOWER(description) LIKE ? ESCAPE '\\')")
-        like = f"%{_like_escape(word.lower())}%"
-        params.extend([like, like])
+        clauses.append("""(
+            title LIKE ? ESCAPE '\\'
+            OR description LIKE ? ESCAPE '\\'
+            OR EXISTS (
+                SELECT 1 FROM task_updates u
+                WHERE u.task_id = tasks.id
+                  AND u.kind = 'user'
+                  AND u.body LIKE ? ESCAPE '\\'
+            )
+        )""")
+        like = f"%{_like_escape(word)}%"
+        params.extend([like, like, like])
 
     query = f"""
         SELECT * FROM tasks
@@ -312,6 +368,10 @@ def create_task(task: TaskCreate):
     cursor.execute(
         "INSERT INTO tasks (id, title, description, due_date, position, completed) VALUES (?, ?, ?, ?, ?, 0)",
         (task_id, task.title, task.description, task.due_date, task.position)
+    )
+    cursor.execute(
+        "INSERT INTO task_updates (id, task_id, body, kind) VALUES (?, ?, 'Task created', 'system')",
+        (str(uuid.uuid4()), task_id)
     )
     conn.commit()
     cursor.execute("SELECT * FROM tasks WHERE id = ?", (task_id,))
@@ -441,7 +501,85 @@ def delete_task_permanent(task_id: str):
         conn.close()
         raise HTTPException(status_code=404, detail="Task not found")
     
+    cursor.execute("DELETE FROM task_updates WHERE task_id = ?", (task_id,))
     cursor.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
+    conn.commit()
+    conn.close()
+    return {"status": "success"}
+
+@app.get("/api/tasks/{task_id}/updates")
+def get_task_updates(task_id: str):
+    # Full update log for a task, newest first.
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT * FROM task_updates WHERE task_id = ? ORDER BY created_at DESC, rowid DESC",
+        (task_id,)
+    )
+    rows = cursor.fetchall()
+    conn.close()
+    return {"updates": [dict(r) for r in rows]}
+
+@app.post("/api/tasks/{task_id}/updates")
+def create_task_update(task_id: str, update: UpdateCreate):
+    body = update.body.strip()
+    if not body:
+        raise HTTPException(status_code=400, detail="Update body cannot be empty")
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT 1 FROM tasks WHERE id = ?", (task_id,))
+    if not cursor.fetchone():
+        conn.close()
+        raise HTTPException(status_code=404, detail="Task not found")
+    update_id = str(uuid.uuid4())
+    cursor.execute(
+        "INSERT INTO task_updates (id, task_id, body, kind) VALUES (?, ?, ?, 'user')",
+        (update_id, task_id, body)
+    )
+    conn.commit()
+    cursor.execute("SELECT * FROM task_updates WHERE id = ?", (update_id,))
+    new_update = dict(cursor.fetchone())
+    conn.close()
+    return new_update
+
+@app.put("/api/updates/{update_id}")
+def edit_task_update(update_id: str, update: UpdateEdit):
+    # Edit a user update's body. The original timestamp is preserved and system
+    # entries cannot be edited.
+    body = update.body.strip()
+    if not body:
+        raise HTTPException(status_code=400, detail="Update body cannot be empty")
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT kind FROM task_updates WHERE id = ?", (update_id,))
+    row = cursor.fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Update not found")
+    if row["kind"] != "user":
+        conn.close()
+        raise HTTPException(status_code=403, detail="System updates cannot be edited")
+    cursor.execute("UPDATE task_updates SET body = ? WHERE id = ?", (body, update_id))
+    conn.commit()
+    cursor.execute("SELECT * FROM task_updates WHERE id = ?", (update_id,))
+    edited = dict(cursor.fetchone())
+    conn.close()
+    return edited
+
+@app.delete("/api/updates/{update_id}")
+def delete_task_update(update_id: str):
+    # Hard-delete a user update. System entries are protected.
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT kind FROM task_updates WHERE id = ?", (update_id,))
+    row = cursor.fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Update not found")
+    if row["kind"] != "user":
+        conn.close()
+        raise HTTPException(status_code=403, detail="System updates cannot be deleted")
+    cursor.execute("DELETE FROM task_updates WHERE id = ?", (update_id,))
     conn.commit()
     conn.close()
     return {"status": "success"}

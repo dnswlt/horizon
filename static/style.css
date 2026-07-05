@@ -587,6 +587,177 @@ body {
     transform: translateY(0);
 }
 
+/* Two-column layout: definition (form) on the left, updates log on the right.
+   The right rail only exists when editing an existing task, so the modal stays
+   narrow and single-column for Create. */
+.modal-body {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.75rem;
+}
+.modal-overlay.mode-edit .modal {
+    max-width: 880px;
+}
+.modal-overlay.mode-edit .modal-body {
+    grid-template-columns: 1fr 340px;
+}
+.modal-overlay:not(.mode-edit) .updates-rail {
+    display: none;
+}
+
+/* Updates rail */
+.updates-rail {
+    display: flex;
+    flex-direction: column;
+    border-left: 1px solid var(--border-color);
+    padding-left: 1.75rem;
+}
+.updates-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.9rem;
+}
+.updates-head h4 {
+    font-size: 0.95rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.count-badge {
+    background: rgba(99, 102, 241, 0.15);
+    color: #a5b4fc;
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 0.1rem 0.5rem;
+    border-radius: 999px;
+}
+.add-update {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 1.1rem;
+}
+.add-update textarea {
+    min-height: 62px;
+    font-size: 0.85rem;
+}
+.add-update-row {
+    display: flex;
+    justify-content: flex-end;
+}
+.add-update-row .btn {
+    padding: 0.45rem 0.9rem;
+    font-size: 0.82rem;
+}
+.timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    overflow-y: auto;
+    max-height: 360px;
+    padding-right: 0.4rem;
+}
+.timeline::-webkit-scrollbar {
+    width: 8px;
+}
+.timeline::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 4px;
+}
+.update-entry {
+    position: relative;
+    padding-left: 1rem;
+}
+.update-entry::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0.42rem;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--primary);
+}
+.update-entry.system::before {
+    background: var(--text-muted);
+}
+.update-entry .update-meta {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    margin-bottom: 0.15rem;
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+.update-entry .update-actions {
+    opacity: 0;
+    transition: opacity var(--transition-fast);
+    display: flex;
+    gap: 0.4rem;
+}
+.update-entry:hover .update-actions {
+    opacity: 1;
+}
+.update-entry .update-actions button {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 0.7rem;
+    padding: 0;
+}
+.update-entry .update-actions button:hover {
+    color: var(--text-secondary);
+}
+.update-entry .update-body {
+    font-size: 0.86rem;
+    color: var(--text-primary);
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+.update-entry.system .update-body {
+    color: var(--text-secondary);
+    font-style: italic;
+}
+.update-edit-box {
+    width: 100%;
+    min-height: 60px;
+    font-size: 0.85rem;
+    margin-bottom: 0.5rem;
+}
+.update-edit-actions {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-end;
+}
+.update-edit-actions .btn {
+    padding: 0.35rem 0.75rem;
+    font-size: 0.78rem;
+}
+
+/* Below the breakpoint the rail collapses under the form */
+@media (max-width: 760px) {
+    .modal-overlay.mode-edit .modal {
+        max-width: 500px;
+    }
+    .modal-overlay.mode-edit .modal-body {
+        grid-template-columns: 1fr;
+        gap: 1.25rem;
+    }
+    .updates-rail {
+        border-left: none;
+        padding-left: 0;
+        border-top: 1px solid var(--border-color);
+        padding-top: 1.25rem;
+    }
+    .timeline {
+        max-height: none;
+    }
+}
+
 .modal-header {
     display: flex;
     justify-content: space-between;
@@ -679,6 +850,11 @@ select:focus {
     font-size: 0.75rem;
     color: var(--text-muted);
     margin-top: 0.25rem;
+}
+
+.label-hint {
+    font-weight: 400;
+    color: var(--text-muted);
 }
 
 textarea {

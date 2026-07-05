@@ -99,3 +99,17 @@ Run the server:
 Then open <http://127.0.0.1:8063>. The `tasks.db` SQLite file is created and
 seeded automatically on first run. `--reload` picks up backend edits; for
 frontend edits, hard-refresh the browser (and remember the `?v=N` bump).
+
+## Tests
+
+Backend tests use pytest with FastAPI's `TestClient`. Install the test-only
+deps once, then run the suite:
+
+```bash
+./venv/bin/python -m pip install -r requirements-dev.txt
+./venv/bin/python -m pytest
+```
+
+The `client` fixture in `conftest.py` points `server.DB_FILE` at a throwaway
+per-test SQLite file (`get_db_connection()` reads it lazily), so tests never
+touch the real `tasks.db`.

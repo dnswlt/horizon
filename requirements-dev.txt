@@ -1,0 +1,4 @@
+# Test-only dependencies (kept out of requirements.txt so they don't bloat the
+# runtime / PyInstaller bundle). Install with: pip install -r requirements-dev.txt
+pytest
+httpx  # required by fastapi/starlette TestClient
