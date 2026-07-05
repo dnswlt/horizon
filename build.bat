@@ -6,7 +6,7 @@ REM to the user. They double-click it; the app opens in their browser.
 python -m pip install -r requirements.txt pyinstaller || goto :error
 
 REM Invoke via `python -m` so it works even when the Scripts dir isn't on PATH.
-python -m PyInstaller --onefile --name Horizon --add-data "static;static" run.py || goto :error
+python -m PyInstaller --onefile --name Horizon --icon "static\favicon.ico" --add-data "static;static" run.py || goto :error
 
 echo.
 echo Done. Your app is at: dist\Horizon.exe

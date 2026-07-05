@@ -1,4 +1,12 @@
 venv/
+.venv/
 tasks.db
-__pycache__
-
+__pycache__/
+.vscode
+.DS_Store
+*.exe
+*~
+.env
+build/
+dist/
+*.spec
