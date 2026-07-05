@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 import sqlite3
 import uuid
@@ -9,8 +10,18 @@ from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
+# Paths. Inside a PyInstaller bundle, read-only assets (static/) are unpacked
+# to sys._MEIPASS and the writable DB lives next to the .exe. Outside a bundle
+# (normal `uvicorn server:app` dev runs) both resolve to this script's folder,
+# so behaviour is unchanged and there is no _MEIPASS dependency.
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+_BUNDLE_DIR = getattr(sys, "_MEIPASS", _SCRIPT_DIR)
+_DATA_DIR = os.path.dirname(sys.executable) if getattr(sys, "frozen", False) else _SCRIPT_DIR
+
+STATIC_DIR = os.path.join(_BUNDLE_DIR, "static")
+
 # Database setup
-DB_FILE = "tasks.db"
+DB_FILE = os.path.join(_DATA_DIR, "tasks.db")
 
 def get_db_connection():
     conn = sqlite3.connect(DB_FILE)
@@ -440,11 +451,11 @@ def delete_task_permanent(task_id: str):
 os.makedirs("static", exist_ok=True)
 
 # Mount static files at /static
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 @app.get("/")
 def read_index():
     return FileResponse(
-        "static/index.html",
+        os.path.join(STATIC_DIR, "index.html"),
         headers={"Cache-Control": "no-cache, no-store, must-revalidate"}
     )
