@@ -64,8 +64,10 @@ strings. The `contexts` entry maps each palette color to a context keyword
 
 - **Bump the asset version when you edit `app.js` or `style.css`.** They are
   cache-busted via `?v=N` query strings in `index.html`. If you change a static
-  file and forget to bump, the browser serves a stale copy. Bump both to the
-  same number.
+  file and forget to bump, the browser serves a stale copy. Run `make
+  bump-version` (or `python3 scripts/bump_version.py`) from the `horizon/`
+  directory — it increments every `?v=N` in `index.html` at once, keeping all
+  assets in lockstep. Don't hand-edit the numbers.
 - **Escape all user-supplied text before inserting into the DOM.** Use the
   `escapeHTML()` helper. The app builds HTML via template strings, so this is
   the XSS boundary — never interpolate raw task text.
