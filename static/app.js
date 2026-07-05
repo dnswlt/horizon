@@ -1155,10 +1155,12 @@ function setupEventListeners() {
         if (e.target === shortcutsModal) toggleShortcutHelp(false);
     });
     document.addEventListener('keydown', (e) => {
-        // ESC closes whichever overlay is open
+        // ESC closes whichever overlay is open, otherwise it releases focus from
+        // a field (e.g. the search box) so single-key shortcuts work again
         if (e.key === 'Escape') {
             if (taskModal.classList.contains('active')) closeModal();
             else if (shortcutsModal.classList.contains('active')) toggleShortcutHelp(false);
+            else if (isEditableTarget(e.target)) e.target.blur();
             return;
         }
 
