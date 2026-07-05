@@ -12,10 +12,10 @@ python3 -m venv venv
 ./venv/bin/python -m pip install -r requirements.txt
 
 # Start the server
-./venv/bin/python -m uvicorn server:app --host 127.0.0.1 --port 8000
+./venv/bin/python -m uvicorn server:app --host 127.0.0.1 --port 8063
 ```
 
-Then open <http://127.0.0.1:8000>. Tasks are stored in a local `tasks.db`
+Then open <http://127.0.0.1:8063>. Tasks are stored in a local `tasks.db`
 SQLite file, created automatically on first run.
 
 ## Windows: build a double-click app

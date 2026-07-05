@@ -93,9 +93,9 @@ python3 -m venv venv
 Run the server:
 
 ```bash
-./venv/bin/python -m uvicorn server:app --host 127.0.0.1 --port 8000 --reload
+./venv/bin/python -m uvicorn server:app --host 127.0.0.1 --port 8063 --reload
 ```
 
-Then open <http://127.0.0.1:8000>. The `tasks.db` SQLite file is created and
+Then open <http://127.0.0.1:8063>. The `tasks.db` SQLite file is created and
 seeded automatically on first run. `--reload` picks up backend edits; for
 frontend edits, hard-refresh the browser (and remember the `?v=N` bump).
