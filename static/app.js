@@ -279,12 +279,11 @@ function renderTasks() {
     const backlogList = grouped['backlog'];
     backlogCounter.textContent = backlogList.length;
     
+    backlogTasksContainer.style.display = 'flex';
     if (backlogList.length === 0) {
         backlogEmptyMsg.style.display = 'flex';
-        backlogTasksContainer.style.display = 'none';
     } else {
         backlogEmptyMsg.style.display = 'none';
-        backlogTasksContainer.style.display = 'flex';
         
         backlogList.sort((a, b) => a.position - b.position);
         backlogList.forEach(task => {
@@ -734,6 +733,13 @@ function setupDragAndDrop() {
             parentZone.addEventListener('drop', (e) => {
                 e.preventDefault();
                 parentZone.classList.remove('drag-over');
+                const dragging = document.querySelector('.dragging');
+                // Only append if the drop landed outside the list (e.g. on the
+                // empty-state message or padding). If dragover already placed the
+                // card inside the list, leave it at its computed position.
+                if (dragging && dragging.parentElement !== list) {
+                    list.appendChild(dragging);
+                }
             });
         }
     });

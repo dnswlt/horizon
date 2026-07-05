@@ -330,6 +330,7 @@ body {
     flex-direction: column;
     gap: 0.75rem;
     width: 100%;
+    flex-grow: 1;
 }
 
 .backlog-empty-state {
