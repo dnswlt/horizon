@@ -24,6 +24,9 @@ const taskDateSelect = document.getElementById('task-date');
 const addBtn = document.getElementById('add-task-btn');
 const modalCloseBtn = document.getElementById('modal-close-btn');
 const modalCancelBtn = document.getElementById('modal-cancel-btn');
+const shortcutsModal = document.getElementById('shortcuts-modal');
+const shortcutsList = document.getElementById('shortcuts-list');
+const shortcutsCloseBtn = document.getElementById('shortcuts-close-btn');
 const toastContainer = document.getElementById('toast-container');
 
 // Tab Elements
@@ -988,6 +991,41 @@ taskForm.addEventListener('submit', async (e) => {
     }
 });
 
+// Keyboard Shortcuts
+// key → { label, run }. The help popup is generated from this registry, so
+// adding a shortcut here also documents it. Modal-scoped keys (ESC) live in
+// the keydown handler in setupEventListeners, not here.
+const SHORTCUTS = {
+    'n': { label: 'New task',            run: () => openModal() },
+    '/': { label: 'Search',              run: () => switchTab('search') },
+    'h': { label: 'Horizon board',       run: () => switchTab('planner') },
+    'a': { label: 'Archive',             run: () => switchTab('archive') },
+    '?': { label: 'Toggle this help',    run: () => toggleShortcutHelp() },
+};
+
+// True when the event originated from a text-entry surface, where single-key
+// shortcuts must yield to normal typing.
+function isEditableTarget(el) {
+    return el instanceof HTMLElement &&
+        (el.matches('input, textarea, select') || el.isContentEditable);
+}
+
+function toggleShortcutHelp(force) {
+    const show = typeof force === 'boolean'
+        ? force
+        : !shortcutsModal.classList.contains('active');
+    shortcutsModal.classList.toggle('active', show);
+}
+
+function renderShortcutHelp() {
+    shortcutsList.innerHTML = Object.entries(SHORTCUTS).map(([key, { label }]) =>
+        `<div class="shortcut-row">
+            <kbd>${escapeHTML(key)}</kbd>
+            <span>${escapeHTML(label)}</span>
+        </div>`
+    ).join('');
+}
+
 // Setup event listeners
 function setupEventListeners() {
     addBtn.addEventListener('click', () => openModal());
@@ -1110,10 +1148,33 @@ function setupEventListeners() {
         if (e.target === taskModal) closeModal();
     });
     
-    // Key bindings (ESC to close modal)
+    // Keyboard shortcuts (see the SHORTCUTS registry above)
+    renderShortcutHelp();
+    shortcutsCloseBtn.addEventListener('click', () => toggleShortcutHelp(false));
+    shortcutsModal.addEventListener('click', (e) => {
+        if (e.target === shortcutsModal) toggleShortcutHelp(false);
+    });
     document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && taskModal.classList.contains('active')) {
-            closeModal();
+        // ESC closes whichever overlay is open
+        if (e.key === 'Escape') {
+            if (taskModal.classList.contains('active')) closeModal();
+            else if (shortcutsModal.classList.contains('active')) toggleShortcutHelp(false);
+            return;
+        }
+
+        // No shortcuts while typing in a field or with modifier keys held
+        if (isEditableTarget(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
+
+        // The task modal is a form — don't fire shortcuts behind it
+        if (taskModal.classList.contains('active')) return;
+
+        // While the help popup is open, only "?" (toggle) responds
+        if (shortcutsModal.classList.contains('active') && e.key !== '?') return;
+
+        const shortcut = SHORTCUTS[e.key];
+        if (shortcut) {
+            e.preventDefault();
+            shortcut.run();
         }
     });
 }

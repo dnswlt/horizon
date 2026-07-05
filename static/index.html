@@ -4,13 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Horizon Planner — Adaptive Task Workspace</title>
-    <link rel="icon" type="image/png" href="/static/favicon.png?v=21">
-    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v=21">
-    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=21">
+    <link rel="icon" type="image/png" href="/static/favicon.png?v=22">
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v=22">
+    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=22">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css?v=21">
+    <link rel="stylesheet" href="/static/style.css?v=22">
 </head>
 <body>
     <!-- App Container -->
@@ -40,7 +40,7 @@
                         <line x1="9" y1="3" x2="9" y2="21"></line>
                         <line x1="15" y1="3" x2="15" y2="21"></line>
                     </svg>
-                    Board
+                    Horizon
                 </button>
                 <button class="tab-btn" id="tab-archive" data-tab="archive">
                     <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round">
@@ -297,9 +297,27 @@
         </div>
     </div>
 
+    <!-- Keyboard Shortcuts Help -->
+    <div class="modal-overlay" id="shortcuts-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Keyboard Shortcuts</h3>
+                <button class="modal-close" id="shortcuts-close-btn">
+                    <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <div class="shortcuts-list" id="shortcuts-list">
+                <!-- Populated from the SHORTCUTS registry in app.js -->
+            </div>
+        </div>
+    </div>
+
     <!-- Toast Notifications -->
     <div id="toast-container"></div>
 
-    <script src="/static/app.js?v=21"></script>
+    <script src="/static/app.js?v=22"></script>
 </body>
 </html>

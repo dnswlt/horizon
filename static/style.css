@@ -694,6 +694,40 @@ textarea {
     margin-top: 1.5rem;
 }
 
+/* Keyboard Shortcuts Help */
+.shortcuts-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.shortcut-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.4rem 0;
+}
+
+.shortcut-row kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.75rem;
+    padding: 0.2rem 0.5rem;
+    font-family: inherit;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-color);
+    border-bottom-width: 2px;
+    border-radius: var(--radius-sm);
+}
+
+.shortcut-row span {
+    color: var(--text-secondary);
+}
+
 /* Toast Container */
 #toast-container {
     position: fixed;
