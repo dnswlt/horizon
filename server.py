@@ -1,6 +1,7 @@
 import os
 import sys
 import json
+import re
 import sqlite3
 import uuid
 import datetime
@@ -281,20 +282,43 @@ def _like_escape(term: str) -> str:
     # Escape LIKE wildcards so a search term is matched literally.
     return term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
+_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
 @app.get("/api/tasks/search")
-def search_tasks(q: str = "", include_done: bool = True, limit: int = 100):
+def search_tasks(
+    q: str = "",
+    include_done: bool = True,
+    after: str = "",
+    before: str = "",
+    limit: int = 100,
+):
     # Each whitespace-separated word must appear in the title, the description,
     # or any of the task's user updates (case-insensitive; SQLite's LIKE already
     # folds ASCII case, so no LOWER() is needed). System updates (e.g. "Task
     # created") are excluded so they never match. Deleted tasks are never returned.
+    #
+    # `after`/`before` are start-of-period dates (YYYY-MM-DD) that bound
+    # completed_at: after -> `>= after`, before -> `< before`. Because open
+    # tasks have a NULL completed_at, any date bound implicitly restricts the
+    # result to completed tasks. The client's query parser produces these from
+    # `after:`/`before:` tokens; invalid values are ignored here defensively.
     words = q.split()
-    if not words:
+    after = after if _DATE_RE.match(after) else ""
+    before = before if _DATE_RE.match(before) else ""
+    if not words and not after and not before:
         return {"tasks": []}
 
     clauses = ["deleted_at IS NULL"]
     params: list = []
     if not include_done:
         clauses.append("completed = 0")
+    if after:
+        clauses.append("completed_at >= ?")
+        params.append(after)
+    if before:
+        clauses.append("completed_at < ?")
+        params.append(before)
     for word in words:
         clauses.append("""(
             title LIKE ? ESCAPE '\\'

@@ -1425,15 +1425,59 @@ function formatDoneDate(completedAt) {
 }
 
 // Search Functions
+
+// Normalise a date token to the *start* of the period it names, as YYYY-MM-DD:
+//   2025          -> 2025-01-01
+//   2025-07       -> 2025-07-01
+//   2025-07-03    -> 2025-07-03
+// Returns null when the value isn't a valid (partial) date, so the caller can
+// fall back to treating the whole token as literal search text.
+function parseDateToken(value) {
+    const m = /^(\d{4})(?:-(\d{1,2}))?(?:-(\d{1,2}))?$/.exec(value);
+    if (!m) return null;
+    const year = m[1];
+    const month = m[2] ? Number(m[2]) : 1;
+    const day = m[3] ? Number(m[3]) : 1;
+    if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+    return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+// Split the raw search bar into structured parts. `before:`/`after:` tokens
+// become date bounds (both anchored to the START of the named period, so
+// `after:2025 before:2025` meet exactly at 2025-01-01). A token whose value
+// isn't a valid date is kept as ordinary search text, so typing "before:lunch"
+// still searches literally. Returns { text, after, before }.
+function parseSearchQuery(raw) {
+    const words = [];
+    let after = '';
+    let before = '';
+    for (const token of raw.trim().split(/\s+/)) {
+        if (!token) continue;
+        const m = /^(before|after):(.+)$/i.exec(token);
+        if (m) {
+            const date = parseDateToken(m[2]);
+            if (date) {
+                if (m[1].toLowerCase() === 'after') after = date;
+                else before = date;
+                continue;
+            }
+        }
+        words.push(token);
+    }
+    return { text: words.join(' '), after, before };
+}
+
 async function performSearch() {
-    const q = searchInput.value.trim();
-    if (!q) {
+    const { text, after, before } = parseSearchQuery(searchInput.value);
+    if (!text && !after && !before) {
         searchItemsContainer.innerHTML = '';
         searchEmptyMsg.style.display = 'flex';
         return;
     }
     try {
-        const params = new URLSearchParams({ q, include_done: searchIncludeDone });
+        const params = new URLSearchParams({ q: text, include_done: searchIncludeDone });
+        if (after) params.set('after', after);
+        if (before) params.set('before', before);
         const res = await fetch(`/api/tasks/search?${params}`);
         if (!res.ok) throw new Error('Search failed');
         const data = await res.json();
