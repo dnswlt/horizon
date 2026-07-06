@@ -42,6 +42,9 @@ const archiveItemsContainer = document.getElementById('archive-items-container')
 const archiveEmptyMsg = document.getElementById('archive-empty-msg');
 const deletedItemsContainer = document.getElementById('deleted-items-container');
 const deletedEmptyMsg = document.getElementById('deleted-empty-msg');
+const deletedSection = document.querySelector('.deleted-section');
+const deletedToggle = document.getElementById('deleted-toggle');
+const deletedListContainer = document.getElementById('deleted-list-container');
 const toggleCompletedBtn = document.getElementById('toggle-completed-btn');
 
 // Search Elements
@@ -1134,9 +1137,11 @@ taskForm.addEventListener('submit', async (e) => {
         
         closeModal();
         fetchTasks();
-        // Keep search results in sync when editing from the Search tab
+        // Keep the active auxiliary view in sync when editing from it
         if (viewSearch.classList.contains('active')) {
             performSearch();
+        } else if (viewArchive.classList.contains('active')) {
+            fetchArchivedTasks(true);
         }
     } catch (err) {
         showToast(err.message, 'error');
@@ -1189,6 +1194,15 @@ function setupEventListeners() {
         const expanded = snoozedStrip.classList.toggle('expanded');
         snoozedList.style.display = expanded ? 'flex' : 'none';
         snoozedStripHeader.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    });
+
+    // Expand/collapse the Deleted (Trash) section — folded by default, and its
+    // contents are fetched lazily the first time (and each time) it is opened.
+    deletedToggle.addEventListener('click', () => {
+        const expanded = deletedSection.classList.toggle('expanded');
+        deletedListContainer.style.display = expanded ? 'flex' : 'none';
+        deletedToggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        if (expanded) fetchDeletedTasks(true);
     });
 
     // Live-update the clickable links strip as the description changes
@@ -1457,6 +1471,14 @@ function renderSearchResults(results) {
             ? `<span class="search-status-pill done">Done</span>`
             : `<span class="search-status-pill open">Open</span>`;
 
+        // Done tasks reopen (tray "lift out" icon, matching the Archive tab);
+        // open tasks complete (checkmark).
+        const completeIcon = task.completed
+            ? `<path d="M4 14v5a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5"></path>
+               <polyline points="8 8 12 4 16 8"></polyline>
+               <line x1="12" y1="4" x2="12" y2="16"></line>`
+            : `<polyline points="20 6 9 17 4 12"></polyline>`;
+
         item.innerHTML = `
             <div class="archive-item-info">
                 <span class="archive-item-title">${escapeHTML(task.title)}</span>
@@ -1468,7 +1490,7 @@ function renderSearchResults(results) {
                 <div class="row-actions">
                     <button class="action-btn complete-btn" title="${task.completed ? 'Reopen task' : 'Mark as done'}">
                         <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                            <polyline points="20 6 9 17 4 12"></polyline>
+                            ${completeIcon}
                         </svg>
                     </button>
                     <button class="action-btn edit-btn" title="Edit task">
@@ -1529,7 +1551,7 @@ function renderArchivedTasks(archivedTasks, append = false) {
     archivedTasks.forEach(task => {
         const item = document.createElement('div');
         const itemColor = deriveColor(task);
-        item.className = `archive-item -e`;
+        item.className = `archive-item ${itemColor ? 'color-' + itemColor : ''}`;
         
         let completedDateFormatted = 'recently';
         if (task.completed_at) {
@@ -1564,16 +1586,57 @@ function renderArchivedTasks(archivedTasks, append = false) {
                     ${dueBadge}
                 </div>
             </div>
-            <button class="btn btn-secondary btn-restore" data-id="${task.id}">
-                Restore
-            </button>
+            <div class="search-item-actions">
+                <div class="row-actions">
+                    <button class="action-btn reopen-btn" title="Reopen task">
+                        <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M4 14v5a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5"></path>
+                            <polyline points="8 8 12 4 16 8"></polyline>
+                            <line x1="12" y1="4" x2="12" y2="16"></line>
+                        </svg>
+                    </button>
+                    <button class="action-btn edit-btn" title="View / edit task">
+                        <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                            <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                        </svg>
+                    </button>
+                    <button class="action-btn delete-btn" title="Delete task">
+                        <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                            <line x1="10" y1="11" x2="10" y2="17"></line>
+                            <line x1="14" y1="11" x2="14" y2="17"></line>
+                        </svg>
+                    </button>
+                </div>
+            </div>
         `;
-        
-        const restoreBtn = item.querySelector('.btn-restore');
-        restoreBtn.addEventListener('click', async () => {
-            await restoreArchivedTask(task.id);
+
+        item.querySelector('.reopen-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            restoreArchivedTask(task.id);
         });
-        
+
+        item.querySelector('.edit-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            openModal(task);
+        });
+
+        item.querySelector('.delete-btn').addEventListener('click', async (e) => {
+            e.stopPropagation();
+            // No confirmation: deletes are soft (recoverable from Trash)
+            await deleteTask(task.id);
+            await fetchArchivedTasks(true);
+            await fetchDeletedTasks(true);
+        });
+
+        // Double click row to view/edit (but not when double-clicking an action button)
+        item.addEventListener('dblclick', (e) => {
+            if (e.target.closest('.row-actions')) return;
+            openModal(task);
+        });
+
         archiveItemsContainer.appendChild(item);
     });
 }
@@ -1585,9 +1648,9 @@ async function restoreArchivedTask(id) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ completed: false })
         });
-        if (!res.ok) throw new Error('Failed to restore task');
-        
-        showToast('Task restored to workspace.');
+        if (!res.ok) throw new Error('Failed to reopen task');
+
+        showToast('Task reopened.');
         await fetchTasks();
         await fetchArchivedTasks(true);
         await fetchDeletedTasks(true);
@@ -1598,6 +1661,9 @@ async function restoreArchivedTask(id) {
 
 // Deleted (Trash) Functions
 async function fetchDeletedTasks(replace = false) {
+    // Trash is the least interesting list, so it is loaded lazily: skip the
+    // fetch entirely while the section is folded (it loads on first expand).
+    if (!deletedSection.classList.contains('expanded')) return;
     try {
         if (replace) {
             deletedOffset = 0;
@@ -1632,7 +1698,7 @@ function renderDeletedTasks(deletedTasks, append = false) {
     deletedTasks.forEach(task => {
         const item = document.createElement('div');
         const itemColor = deriveColor(task);
-        item.className = `archive-item -e`;
+        item.className = `archive-item ${itemColor ? 'color-' + itemColor : ''}`;
         
         let deletedDateFormatted = 'recently';
         if (task.deleted_at) {

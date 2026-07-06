@@ -1590,6 +1590,46 @@ textarea {
 }
 
 /* Collapsed snoozed strip at the bottom of the backlog */
+/* Foldable "Deleted" (Trash) section — mirrors the snoozed strip */
+.deleted-section {
+    margin-top: 1rem;
+}
+
+.deleted-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.6rem 0.85rem;
+    background: rgba(15, 23, 42, 0.3);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    color: var(--text-secondary);
+    font-family: var(--font-sans);
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.deleted-toggle:hover {
+    background: rgba(15, 23, 42, 0.5);
+    color: var(--text-primary);
+}
+
+.deleted-chevron {
+    margin-left: auto;
+    transition: transform var(--transition-fast);
+}
+
+.deleted-section.expanded .deleted-chevron {
+    transform: rotate(180deg);
+}
+
+#deleted-list-container {
+    margin-top: 0.6rem;
+}
+
 .snoozed-strip {
     margin-top: 1rem;
 }
