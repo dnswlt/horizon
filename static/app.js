@@ -8,7 +8,7 @@ import {
     formatTimestamp,
     formatDoneDate,
     parseSearchQuery,
-} from './core.js?v=28';
+} from './core.js?v=29';
 
 // App State
 let tasks = [];
@@ -110,6 +110,28 @@ function deriveColor(task) {
     return null;
 }
 
+// ===== API helper =====
+
+// One place for the JSON-request contract: sets the Content-Type + serialises
+// the body when one is given, throws a friendly Error on a non-OK response, and
+// returns the parsed JSON (or null for empty bodies, e.g. DELETE). Callers keep
+// their own try/catch and success handling.
+async function apiFetch(url, { method = 'GET', body, errorMessage } = {}) {
+    const opts = { method };
+    if (body !== undefined) {
+        opts.headers = { 'Content-Type': 'application/json' };
+        opts.body = JSON.stringify(body);
+    }
+    const res = await fetch(url, opts);
+    if (!res.ok) throw new Error(errorMessage || `Request failed (${res.status})`);
+    const text = await res.text();
+    return text ? JSON.parse(text) : null;
+}
+
+// Sugar for the most common call: PUT a partial task update to /api/tasks/:id.
+const patchTask = (id, fields, errorMessage) =>
+    apiFetch(`/api/tasks/${id}`, { method: 'PUT', body: fields, errorMessage });
+
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
     calculateWorkdays();
@@ -130,9 +152,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // Load context configuration from the server and reflect it in the UI
 async function fetchContexts() {
     try {
-        const res = await fetch('/api/settings/contexts');
-        if (!res.ok) throw new Error('Failed to load contexts');
-        contexts = await res.json();
+        contexts = await apiFetch('/api/settings/contexts', { errorMessage: 'Failed to load contexts' });
         rebuildContextColorMap();
         applyContextsToInputs();
         renderTasks();
@@ -158,12 +178,9 @@ function saveContexts() {
     clearTimeout(contextsSaveTimer);
     contextsSaveTimer = setTimeout(async () => {
         try {
-            const res = await fetch('/api/settings/contexts', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(contexts)
+            await apiFetch('/api/settings/contexts', {
+                method: 'PUT', body: contexts, errorMessage: 'Failed to save contexts'
             });
-            if (!res.ok) throw new Error('Failed to save contexts');
         } catch (err) {
             showToast(err.message, 'error');
         }
@@ -235,9 +252,7 @@ function renderColumnsStructure() {
 // API: Fetch tasks from backend
 async function fetchTasks() {
     try {
-        const res = await fetch('/api/tasks');
-        if (!res.ok) throw new Error('Failed to load tasks');
-        tasks = await res.json();
+        tasks = await apiFetch('/api/tasks', { errorMessage: 'Failed to load tasks' });
         renderTasks();
         fetchSnoozedTasks();
     } catch (err) {
@@ -315,6 +330,31 @@ function renderTasks() {
 
     setupDragAndDrop();
 }
+
+// Reusable inline SVG icons for the small action buttons. Kept as complete
+// <svg> strings so one definition keeps every button pixel-identical wherever
+// it appears (task cards, search results, archive rows).
+const ICON_ATTRS = 'viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"';
+const ICONS = {
+    edit: `<svg ${ICON_ATTRS}>
+        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+        <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+    </svg>`,
+    trash: `<svg ${ICON_ATTRS}>
+        <polyline points="3 6 5 6 21 6"></polyline>
+        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+        <line x1="10" y1="11" x2="10" y2="17"></line>
+        <line x1="14" y1="11" x2="14" y2="17"></line>
+    </svg>`,
+    reopen: `<svg ${ICON_ATTRS}>
+        <path d="M4 14v5a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5"></path>
+        <polyline points="8 8 12 4 16 8"></polyline>
+        <line x1="12" y1="4" x2="12" y2="16"></line>
+    </svg>`,
+    check: `<svg ${ICON_ATTRS}>
+        <polyline points="20 6 9 17 4 12"></polyline>
+    </svg>`,
+};
 
 // DOM Helper: Create task card element
 function createCardElement(task) {
@@ -399,20 +439,8 @@ function createCardElement(task) {
             </div>
             <div class="card-actions">
                 ${snoozeBtn}
-                <button class="action-btn edit-btn" title="Edit task">
-                    <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                        <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                    </svg>
-                </button>
-                <button class="action-btn delete-btn" title="Delete task">
-                    <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                        <polyline points="3 6 5 6 21 6"></polyline>
-                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                        <line x1="10" y1="11" x2="10" y2="17"></line>
-                        <line x1="14" y1="11" x2="14" y2="17"></line>
-                    </svg>
-                </button>
+                <button class="action-btn edit-btn" title="Edit task">${ICONS.edit}</button>
+                <button class="action-btn delete-btn" title="Delete task">${ICONS.trash}</button>
             </div>
         </div>
         ${descHtml}
@@ -472,13 +500,8 @@ function createCardElement(task) {
 // Toggle task completion
 async function toggleTaskCompletion(id, completed, cardEl) {
     try {
-        const res = await fetch(`/api/tasks/${id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ completed })
-        });
-        if (!res.ok) throw new Error('Could not update task status');
-        
+        await patchTask(id, { completed }, 'Could not update task status');
+
         // Find local task and update
         const taskIdx = tasks.findIndex(t => t.id === id);
         if (taskIdx > -1) {
@@ -503,12 +526,7 @@ async function toggleTaskCompletion(id, completed, cardEl) {
 // there is no card element to toggle in place)
 async function setTaskCompleted(id, completed) {
     try {
-        const res = await fetch(`/api/tasks/${id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ completed })
-        });
-        if (!res.ok) throw new Error('Could not update task status');
+        await patchTask(id, { completed }, 'Could not update task status');
 
         showToast(completed ? 'Task completed!' : 'Task reopened.');
         await fetchTasks();     // keep the Horizon board in sync
@@ -521,11 +539,8 @@ async function setTaskCompleted(id, completed) {
 // API: Delete task
 async function deleteTask(id) {
     try {
-        const res = await fetch(`/api/tasks/${id}`, {
-            method: 'DELETE'
-        });
-        if (!res.ok) throw new Error('Could not delete task');
-        
+        await apiFetch(`/api/tasks/${id}`, { method: 'DELETE', errorMessage: 'Could not delete task' });
+
         tasks = tasks.filter(t => t.id !== id);
         renderTasks();
         showToast('Task moved to Trash.');
@@ -611,12 +626,7 @@ function openSnoozePopover(anchorEl, task) {
 
 async function snoozeTask(task, dateString) {
     try {
-        const res = await fetch(`/api/tasks/${task.id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ defer_until: dateString, due_date: null })
-        });
-        if (!res.ok) throw new Error('Failed to snooze task');
+        await patchTask(task.id, { defer_until: dateString, due_date: null }, 'Failed to snooze task');
         await fetchTasks();
         showToast(`Snoozed until ${formatShortDate(dateString)}.`);
     } catch (err) {
@@ -627,12 +637,7 @@ async function snoozeTask(task, dateString) {
 // notify=false is used for the resurfaced-badge dismiss (silent acknowledge)
 async function unsnoozeTask(id, notify = true) {
     try {
-        const res = await fetch(`/api/tasks/${id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ defer_until: null })
-        });
-        if (!res.ok) throw new Error('Failed to un-snooze task');
+        await patchTask(id, { defer_until: null }, 'Failed to un-snooze task');
         await fetchTasks();
         if (notify) showToast('Task returned to backlog.');
     } catch (err) {
@@ -642,9 +647,7 @@ async function unsnoozeTask(id, notify = true) {
 
 async function fetchSnoozedTasks() {
     try {
-        const res = await fetch('/api/tasks/snoozed');
-        if (!res.ok) throw new Error('Failed to load snoozed tasks');
-        renderSnoozedStrip(await res.json());
+        renderSnoozedStrip(await apiFetch('/api/tasks/snoozed', { errorMessage: 'Failed to load snoozed tasks' }));
     } catch (err) {
         console.error(err);
     }
@@ -832,14 +835,10 @@ async function saveReorderedState() {
     if (updates.length === 0) return;
 
     try {
-        const res = await fetch('/api/tasks/reorder', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ tasks: updates })
+        await apiFetch('/api/tasks/reorder', {
+            method: 'POST', body: { tasks: updates }, errorMessage: 'Failed to save layout order'
         });
-        
-        if (!res.ok) throw new Error('Failed to save layout order');
-        
+
         // Sync our local model to match DOM, and trigger UI updates
         updates.forEach(upd => {
             const task = tasks.find(t => t.id === upd.id);
@@ -898,9 +897,7 @@ async function loadTaskUpdates(taskId) {
     updatesTimeline.innerHTML = '';
     newUpdateInput.value = '';
     try {
-        const res = await fetch(`/api/tasks/${taskId}/updates`);
-        if (!res.ok) throw new Error('Failed to load updates');
-        const data = await res.json();
+        const data = await apiFetch(`/api/tasks/${taskId}/updates`, { errorMessage: 'Failed to load updates' });
         renderUpdates(data.updates);
     } catch (err) {
         showToast(err.message, 'error');
@@ -945,13 +942,9 @@ async function postUpdate() {
     const body = newUpdateInput.value.trim();
     if (!taskId || !body) return;
     try {
-        const res = await fetch(`/api/tasks/${taskId}/updates`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ body })
+        const created = await apiFetch(`/api/tasks/${taskId}/updates`, {
+            method: 'POST', body: { body }, errorMessage: 'Failed to post update'
         });
-        if (!res.ok) throw new Error('Failed to post update');
-        const created = await res.json();
         newUpdateInput.value = '';
         updatesTimeline.insertBefore(createUpdateElement(created), updatesTimeline.firstChild);
         updatesCount.textContent = String(updatesTimeline.querySelectorAll('.update-entry').length);
@@ -963,8 +956,7 @@ async function postUpdate() {
 async function deleteUpdate(id, entry) {
     if (!confirm('Delete this update? This cannot be undone.')) return;
     try {
-        const res = await fetch(`/api/updates/${id}`, { method: 'DELETE' });
-        if (!res.ok) throw new Error('Failed to delete update');
+        await apiFetch(`/api/updates/${id}`, { method: 'DELETE', errorMessage: 'Failed to delete update' });
         entry.remove();
         updatesCount.textContent = String(updatesTimeline.querySelectorAll('.update-entry').length);
     } catch (err) {
@@ -1001,13 +993,9 @@ function startEditUpdate(id, entry) {
         const text = box.value.trim();
         if (!text) { restore(original); return; }
         try {
-            const res = await fetch(`/api/updates/${id}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ body: text })
+            const edited = await apiFetch(`/api/updates/${id}`, {
+                method: 'PUT', body: { body: text }, errorMessage: 'Failed to save update'
             });
-            if (!res.ok) throw new Error('Failed to save update');
-            const edited = await res.json();
             restore(edited.body);
         } catch (err) {
             showToast(err.message, 'error');
@@ -1088,30 +1076,15 @@ taskForm.addEventListener('submit', async (e) => {
     try {
         if (id) {
             // Edit API call
-            const res = await fetch(`/api/tasks/${id}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    title,
-                    description,
-                    due_date: dueDate
-                })
-            });
-            if (!res.ok) throw new Error('Failed to update task');
+            await patchTask(id, { title, description, due_date: dueDate }, 'Failed to update task');
             showToast('Task updated.');
         } else {
             // Create API call
-            const res = await fetch('/api/tasks', {
+            await apiFetch('/api/tasks', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    title,
-                    description,
-                    due_date: dueDate,
-                    position
-                })
+                body: { title, description, due_date: dueDate, position },
+                errorMessage: 'Failed to create task'
             });
-            if (!res.ok) throw new Error('Failed to create task');
             showToast('Task created.');
         }
         
@@ -1365,10 +1338,8 @@ async function fetchArchivedTasks(replace = false) {
         if (replace) {
             archiveOffset = 0;
         }
-        const res = await fetch(`/api/tasks/archive?limit=${PAGE_SIZE}&offset=${archiveOffset}`);
-        if (!res.ok) throw new Error('Failed to load archive');
-        const data = await res.json();
-        
+        const data = await apiFetch(`/api/tasks/archive?limit=${PAGE_SIZE}&offset=${archiveOffset}`, { errorMessage: 'Failed to load archive' });
+
         renderArchivedTasks(data.tasks, !replace);
         
         const loadMoreContainer = document.getElementById('archive-load-more-container');
@@ -1395,9 +1366,7 @@ async function performSearch() {
         const params = new URLSearchParams({ q: text, include_done: searchIncludeDone });
         if (after) params.set('after', after);
         if (before) params.set('before', before);
-        const res = await fetch(`/api/tasks/search?${params}`);
-        if (!res.ok) throw new Error('Search failed');
-        const data = await res.json();
+        const data = await apiFetch(`/api/tasks/search?${params}`, { errorMessage: 'Search failed' });
         renderSearchResults(data.tasks);
     } catch (err) {
         showToast(err.message, 'error');
@@ -1434,11 +1403,7 @@ function renderSearchResults(results) {
 
         // Done tasks reopen (tray "lift out" icon, matching the Archive tab);
         // open tasks complete (checkmark).
-        const completeIcon = task.completed
-            ? `<path d="M4 14v5a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5"></path>
-               <polyline points="8 8 12 4 16 8"></polyline>
-               <line x1="12" y1="4" x2="12" y2="16"></line>`
-            : `<polyline points="20 6 9 17 4 12"></polyline>`;
+        const completeIcon = task.completed ? ICONS.reopen : ICONS.check;
 
         item.innerHTML = `
             <div class="archive-item-info">
@@ -1449,25 +1414,9 @@ function renderSearchResults(results) {
             <div class="search-item-actions">
                 ${statusPill}
                 <div class="row-actions">
-                    <button class="action-btn complete-btn" title="${task.completed ? 'Reopen task' : 'Mark as done'}">
-                        <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                            ${completeIcon}
-                        </svg>
-                    </button>
-                    <button class="action-btn edit-btn" title="Edit task">
-                        <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                            <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                        </svg>
-                    </button>
-                    <button class="action-btn delete-btn" title="Delete task">
-                        <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                            <polyline points="3 6 5 6 21 6"></polyline>
-                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                            <line x1="10" y1="11" x2="10" y2="17"></line>
-                            <line x1="14" y1="11" x2="14" y2="17"></line>
-                        </svg>
-                    </button>
+                    <button class="action-btn complete-btn" title="${task.completed ? 'Reopen task' : 'Mark as done'}">${completeIcon}</button>
+                    <button class="action-btn edit-btn" title="Edit task">${ICONS.edit}</button>
+                    <button class="action-btn delete-btn" title="Delete task">${ICONS.trash}</button>
                 </div>
             </div>
         `;
@@ -1514,22 +1463,8 @@ function renderArchivedTasks(archivedTasks, append = false) {
         const itemColor = deriveColor(task);
         item.className = `archive-item ${itemColor ? 'color-' + itemColor : ''}`;
         
-        let completedDateFormatted = 'recently';
-        if (task.completed_at) {
-            let dateStr = task.completed_at;
-            if (!dateStr.includes('T')) {
-                dateStr = dateStr.replace(' ', 'T') + 'Z';
-            }
-            const dCompleted = new Date(dateStr);
-            if (!isNaN(dCompleted.getTime())) {
-                const month = dCompleted.toLocaleDateString('en-US', { month: 'short' });
-                const day = dCompleted.getDate();
-                const hours = String(dCompleted.getHours()).padStart(2, '0');
-                const minutes = String(dCompleted.getMinutes()).padStart(2, '0');
-                completedDateFormatted = `${month} ${day}, ${hours}:${minutes}`;
-            }
-        }
-        
+        const completedDateFormatted = formatDoneDate(task.completed_at);
+
         const descHtml = task.description ? `<p class="archive-item-desc">${escapeHTML(task.description)}</p>` : '';
         
         let dueBadge = '';
@@ -1549,27 +1484,9 @@ function renderArchivedTasks(archivedTasks, append = false) {
             </div>
             <div class="search-item-actions">
                 <div class="row-actions">
-                    <button class="action-btn reopen-btn" title="Reopen task">
-                        <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M4 14v5a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5"></path>
-                            <polyline points="8 8 12 4 16 8"></polyline>
-                            <line x1="12" y1="4" x2="12" y2="16"></line>
-                        </svg>
-                    </button>
-                    <button class="action-btn edit-btn" title="View / edit task">
-                        <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                            <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                        </svg>
-                    </button>
-                    <button class="action-btn delete-btn" title="Delete task">
-                        <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                            <polyline points="3 6 5 6 21 6"></polyline>
-                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                            <line x1="10" y1="11" x2="10" y2="17"></line>
-                            <line x1="14" y1="11" x2="14" y2="17"></line>
-                        </svg>
-                    </button>
+                    <button class="action-btn reopen-btn" title="Reopen task">${ICONS.reopen}</button>
+                    <button class="action-btn edit-btn" title="View / edit task">${ICONS.edit}</button>
+                    <button class="action-btn delete-btn" title="Delete task">${ICONS.trash}</button>
                 </div>
             </div>
         `;
@@ -1604,12 +1521,7 @@ function renderArchivedTasks(archivedTasks, append = false) {
 
 async function restoreArchivedTask(id) {
     try {
-        const res = await fetch(`/api/tasks/${id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ completed: false })
-        });
-        if (!res.ok) throw new Error('Failed to reopen task');
+        await patchTask(id, { completed: false }, 'Failed to reopen task');
 
         showToast('Task reopened.');
         await fetchTasks();
@@ -1629,10 +1541,8 @@ async function fetchDeletedTasks(replace = false) {
         if (replace) {
             deletedOffset = 0;
         }
-        const res = await fetch(`/api/tasks/deleted?limit=${PAGE_SIZE}&offset=${deletedOffset}`);
-        if (!res.ok) throw new Error('Failed to load trash');
-        const data = await res.json();
-        
+        const data = await apiFetch(`/api/tasks/deleted?limit=${PAGE_SIZE}&offset=${deletedOffset}`, { errorMessage: 'Failed to load trash' });
+
         renderDeletedTasks(data.tasks, !replace);
         
         const loadMoreContainer = document.getElementById('deleted-load-more-container');
@@ -1661,22 +1571,8 @@ function renderDeletedTasks(deletedTasks, append = false) {
         const itemColor = deriveColor(task);
         item.className = `archive-item ${itemColor ? 'color-' + itemColor : ''}`;
         
-        let deletedDateFormatted = 'recently';
-        if (task.deleted_at) {
-            let dateStr = task.deleted_at;
-            if (!dateStr.includes('T')) {
-                dateStr = dateStr.replace(' ', 'T') + 'Z';
-            }
-            const dDeleted = new Date(dateStr);
-            if (!isNaN(dDeleted.getTime())) {
-                const month = dDeleted.toLocaleDateString('en-US', { month: 'short' });
-                const day = dDeleted.getDate();
-                const hours = String(dDeleted.getHours()).padStart(2, '0');
-                const minutes = String(dDeleted.getMinutes()).padStart(2, '0');
-                deletedDateFormatted = `${month} ${day}, ${hours}:${minutes}`;
-            }
-        }
-        
+        const deletedDateFormatted = formatTimestamp(task.deleted_at, 'recently');
+
         const descHtml = task.description ? `<p class="archive-item-desc">${escapeHTML(task.description)}</p>` : '';
         
         let dueBadge = '';
@@ -1718,13 +1614,8 @@ function renderDeletedTasks(deletedTasks, append = false) {
 
 async function restoreDeletedTask(id) {
     try {
-        const res = await fetch(`/api/tasks/${id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ deleted: false })
-        });
-        if (!res.ok) throw new Error('Failed to restore task');
-        
+        await patchTask(id, { deleted: false }, 'Failed to restore task');
+
         showToast('Task restored to workspace.');
         await fetchTasks();
         await fetchArchivedTasks(true);
@@ -1736,11 +1627,8 @@ async function restoreDeletedTask(id) {
 
 async function deletePermanently(id) {
     try {
-        const res = await fetch(`/api/tasks/${id}/permanent`, {
-            method: 'DELETE'
-        });
-        if (!res.ok) throw new Error('Failed to delete task permanently');
-        
+        await apiFetch(`/api/tasks/${id}/permanent`, { method: 'DELETE', errorMessage: 'Failed to delete task permanently' });
+
         showToast('Task permanently deleted.');
         await fetchArchivedTasks(true);
         await fetchDeletedTasks(true);
