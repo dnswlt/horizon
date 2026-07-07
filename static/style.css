@@ -1499,13 +1499,14 @@ textarea {
     display: inline-flex;
     align-items: center;
     gap: 0.25rem;
-    font-size: 0.68rem;
-    font-weight: 600;
-    padding: 0.1rem 0.4rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 0.15rem 0.5rem;
     border-radius: 9999px;
-    background: rgba(168, 85, 247, 0.15);
-    color: #c4b5fd;
-    border: 1px solid rgba(168, 85, 247, 0.25);
+    background: #8b5cf6;
+    color: #fff;
+    border: 1px solid #7c3aed;
+    box-shadow: 0 1px 4px rgba(139, 92, 246, 0.45);
 }
 
 .card-resurfaced-dismiss {

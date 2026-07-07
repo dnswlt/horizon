@@ -369,12 +369,12 @@ function createCardElement(task) {
     const today = getLocalDateString(0);
     const isResurfaced = task.defer_until && task.defer_until <= today && !task.completed;
     const resurfacedBadge = isResurfaced
-        ? `<div class="card-resurfaced-badge" title="Back from snooze">
+        ? `<div class="card-resurfaced-badge" title="This task's snooze period ended — it's back on your board">
                 <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="9 14 4 9 9 4"></polyline>
-                    <path d="M20 20v-7a4 4 0 0 0-4-4H4"></path>
+                    <circle cx="12" cy="12" r="9"></circle>
+                    <polyline points="12 8 12 12 15 14"></polyline>
                 </svg>
-                <span>Back</span>
+                <span>Snooze ended</span>
                 <span class="card-resurfaced-dismiss" title="Dismiss">&times;</span>
            </div>`
         : '';
