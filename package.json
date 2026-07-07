@@ -1,0 +1,9 @@
+{
+    "name": "horizon",
+    "private": true,
+    "type": "module",
+    "description": "Frontend unit tests for static/core.js (run with Node's built-in test runner; no dependencies).",
+    "scripts": {
+        "test": "node --test \"tests/js/**/*.test.js\""
+    }
+}
