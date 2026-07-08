@@ -41,6 +41,7 @@ def _create_schema(cursor):
             completed_at TEXT, -- YYYY-MM-DD HH:MM:SS format (UTC)
             deleted_at TEXT, -- YYYY-MM-DD HH:MM:SS format (UTC) or NULL
             defer_until TEXT, -- snooze date YYYY-MM-DD or NULL (see migration note)
+            waiting_since TEXT, -- "Waiting For": UTC timestamp parked on, or NULL
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
         )
     """)
@@ -82,6 +83,11 @@ def _migrate_schema(cursor):
         # Snooze date (YYYY-MM-DD). Future = hidden/snoozed; past-or-today
         # and not NULL = resurfaced; NULL = normal. Orthogonal to due_date.
         cursor.execute("ALTER TABLE tasks ADD COLUMN defer_until TEXT")
+    if "waiting_since" not in columns:
+        # "Waiting For" list (GTD): UTC timestamp the task was parked on, or NULL.
+        # No wake date by design — reviewed, not alarmed. Mutually exclusive with
+        # a due_date and with defer_until.
+        cursor.execute("ALTER TABLE tasks ADD COLUMN waiting_since TEXT")
 
     # Data cleanup: ensure all completed tasks have a valid completed_at timestamp.
     cursor.execute("UPDATE tasks SET completed_at = datetime('now') WHERE completed = 1 AND (completed_at IS NULL OR completed_at = '')")
@@ -184,6 +190,7 @@ class TaskUpdate(BaseModel):
     completed: Optional[bool] = None
     deleted: Optional[bool] = None
     defer_until: Optional[str] = None
+    waiting: Optional[bool] = None
 
 class UpdateCreate(BaseModel):
     body: str
@@ -206,7 +213,7 @@ DEFAULT_CONTEXTS = {
     "red": "urgent",
     "green": "review",
     "blue": "work",
-    "yellow": "waiting",
+    "yellow": "",  # "waiting" retired: it's a real state now (the Waiting list)
     "purple": "home",
 }
 
@@ -255,7 +262,25 @@ def get_tasks():
         WHERE ((completed = 0 OR (completed = 1 AND completed_at >= datetime('now', '-7 days'))))
           AND deleted_at IS NULL
           AND (defer_until IS NULL OR defer_until <= date('now', 'localtime'))
+          AND waiting_since IS NULL
         ORDER BY position ASC
+    """)
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+@app.get("/api/tasks/waiting")
+def get_waiting_tasks():
+    # "Waiting For" list: parked tasks blocked on someone else, no wake date.
+    # Oldest first, so the stalest (most in need of a nudge) sit on top.
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT * FROM tasks
+        WHERE completed = 0
+          AND deleted_at IS NULL
+          AND waiting_since IS NOT NULL
+        ORDER BY waiting_since ASC
     """)
     rows = cursor.fetchall()
     conn.close()
@@ -461,6 +486,21 @@ def update_task(task_id: str, task: TaskUpdate):
     if "due_date" in task.model_fields_set and task.due_date is not None and not defer_explicit:
         update_fields.append("defer_until = ?")
         params.append(None)
+
+    # Waiting list ("Waiting For"): park a task with no wake date. Entering
+    # stamps waiting_since (UTC) and clears any board placement / snooze; leaving
+    # clears it. Clients send only { waiting: ... } here, so no field collides.
+    if task.waiting is not None:
+        update_fields.append("waiting_since = ?")
+        if task.waiting:
+            now_utc = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            params.append(now_utc)
+            update_fields.append("due_date = ?")
+            params.append(None)
+            update_fields.append("defer_until = ?")
+            params.append(None)
+        else:
+            params.append(None)
 
     if not update_fields:
         conn.close()

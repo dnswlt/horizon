@@ -4,13 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Horizon Planner — Adaptive Task Workspace</title>
-    <link rel="icon" type="image/png" href="/static/favicon.png?v=29">
-    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v=29">
-    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=29">
+    <link rel="icon" type="image/png" href="/static/favicon.png?v=34">
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v=34">
+    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=34">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css?v=29">
+    <link rel="stylesheet" href="/static/style.css?v=34">
 </head>
 <body>
     <!-- App Container -->
@@ -101,7 +101,7 @@
                             </div>
                             <div class="color-label-row">
                                 <span class="color-dot-indicator color-yellow"></span>
-                                <input type="text" class="context-input" data-color="yellow" placeholder="e.g. waiting">
+                                <input type="text" class="context-input" data-color="yellow" placeholder="e.g. errands">
                             </div>
                             <div class="color-label-row">
                                 <span class="color-dot-indicator color-purple"></span>
@@ -164,6 +164,25 @@
                         </button>
                         <div class="snoozed-list" id="snoozed-list" style="display: none;">
                             <!-- Dynamic snoozed rows -->
+                        </div>
+                    </div>
+
+                    <!-- Waiting-for strip: tasks parked on someone else. Expanded
+                         by default (unlike Snoozed) — it's meant to be reviewed. -->
+                    <div class="waiting-strip expanded" id="waiting-strip" style="display: none;">
+                        <button class="waiting-strip-header" id="waiting-strip-header" aria-expanded="true">
+                            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                                <circle cx="12" cy="7" r="4"></circle>
+                            </svg>
+                            <span>Waiting</span>
+                            <span class="counter" id="waiting-counter">0</span>
+                            <svg class="waiting-chevron" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="6 9 12 15 18 9"></polyline>
+                            </svg>
+                        </button>
+                        <div class="waiting-list" id="waiting-list" style="display: flex;">
+                            <!-- Dynamic waiting rows -->
                         </div>
                     </div>
                 </section>
@@ -342,6 +361,6 @@
     <!-- Toast Notifications -->
     <div id="toast-container"></div>
 
-    <script type="module" src="/static/app.js?v=29"></script>
+    <script type="module" src="/static/app.js?v=34"></script>
 </body>
 </html>

@@ -7,8 +7,9 @@ import {
     nextMonthDateString,
     formatTimestamp,
     formatDoneDate,
+    formatWaitingSince,
     parseSearchQuery,
-} from './core.js?v=29';
+} from './core.js?v=34';
 
 // App State
 let tasks = [];
@@ -25,6 +26,10 @@ const snoozedStrip = document.getElementById('snoozed-strip');
 const snoozedStripHeader = document.getElementById('snoozed-strip-header');
 const snoozedList = document.getElementById('snoozed-list');
 const snoozedCounter = document.getElementById('snoozed-counter');
+const waitingStrip = document.getElementById('waiting-strip');
+const waitingStripHeader = document.getElementById('waiting-strip-header');
+const waitingList = document.getElementById('waiting-list');
+const waitingCounter = document.getElementById('waiting-counter');
 const taskModal = document.getElementById('task-modal');
 const taskForm = document.getElementById('task-form');
 const modalTitle = document.getElementById('modal-title');
@@ -83,7 +88,7 @@ let contexts = {
     red: 'urgent',
     green: 'review',
     blue: 'work',
-    yellow: 'waiting',
+    yellow: '',  // "waiting" retired: it's a real state now (the Waiting list)
     purple: 'home'
 };
 // Reverse lookup keyword(lowercased) -> color, rebuilt whenever contexts change.
@@ -255,6 +260,7 @@ async function fetchTasks() {
         tasks = await apiFetch('/api/tasks', { errorMessage: 'Failed to load tasks' });
         renderTasks();
         fetchSnoozedTasks();
+        fetchWaitingTasks();
     } catch (err) {
         showToast(err.message, 'error');
     }
@@ -572,7 +578,6 @@ function openSnoozePopover(anchorEl, task) {
 
     const presets = [
         { label: 'Tomorrow', date: getLocalDateString(1) },
-        { label: 'This weekend', date: nextWeekdayDateString(6) },
         { label: 'Next week', date: nextWeekdayDateString(1) },
         { label: 'In 2 weeks', date: getLocalDateString(14) },
         { label: 'Next month', date: nextMonthDateString() },
@@ -590,6 +595,15 @@ function openSnoozePopover(anchorEl, task) {
         <label class="snooze-custom">
             <input type="date" class="snooze-custom-input" min="${getLocalDateString(1)}">
         </label>
+        <div class="snooze-divider"></div>
+        <button type="button" class="snooze-preset snooze-waiting">
+            <span>Move to Waiting</span>
+            <svg class="snooze-waiting-icon" viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="5 17 10 12 5 7"></polyline>
+                <polyline points="11 17 16 12 11 7"></polyline>
+                <polyline points="17 17 22 12 17 7"></polyline>
+            </svg>
+        </button>
     `;
     document.body.appendChild(pop);
     snoozePopoverEl = pop;
@@ -602,7 +616,9 @@ function openSnoozePopover(anchorEl, task) {
     pop.style.left = `${left}px`;
     pop.style.top = `${rect.bottom + window.scrollY + 6}px`;
 
-    pop.querySelectorAll('.snooze-preset').forEach(btn => {
+    // Only the dated presets snooze; the Waiting button shares .snooze-preset for
+    // styling but has no data-date and its own handler below.
+    pop.querySelectorAll('.snooze-preset[data-date]').forEach(btn => {
         btn.addEventListener('click', async (e) => {
             e.stopPropagation();
             const date = btn.getAttribute('data-date');
@@ -618,6 +634,12 @@ function openSnoozePopover(anchorEl, task) {
             closeSnoozePopover();
             await snoozeTask(task, customInput.value);
         }
+    });
+
+    pop.querySelector('.snooze-waiting').addEventListener('click', async (e) => {
+        e.stopPropagation();
+        closeSnoozePopover();
+        await waitTask(task);
     });
 
     // Bind outside-click on the next tick so the opening click doesn't close it
@@ -640,6 +662,28 @@ async function unsnoozeTask(id, notify = true) {
         await patchTask(id, { defer_until: null }, 'Failed to un-snooze task');
         await fetchTasks();
         if (notify) showToast('Task returned to backlog.');
+    } catch (err) {
+        showToast(err.message, 'error');
+    }
+}
+
+// ===== Waiting list ("Waiting For": parked on someone else, no wake date) =====
+
+async function waitTask(task) {
+    try {
+        await patchTask(task.id, { waiting: true }, 'Failed to move task to Waiting');
+        await fetchTasks();
+        showToast('Moved to Waiting.');
+    } catch (err) {
+        showToast(err.message, 'error');
+    }
+}
+
+async function unwaitTask(id) {
+    try {
+        await patchTask(id, { waiting: false }, 'Failed to remove task from Waiting');
+        await fetchTasks();
+        showToast('Task returned to backlog.');
     } catch (err) {
         showToast(err.message, 'error');
     }
@@ -678,6 +722,43 @@ function renderSnoozedStrip(snoozed) {
             await unsnoozeTask(task.id);
         });
         snoozedList.appendChild(row);
+    });
+}
+
+async function fetchWaitingTasks() {
+    try {
+        renderWaitingStrip(await apiFetch('/api/tasks/waiting', { errorMessage: 'Failed to load waiting tasks' }));
+    } catch (err) {
+        console.error(err);
+    }
+}
+
+function renderWaitingStrip(waiting) {
+    if (!waiting.length) {
+        waitingStrip.style.display = 'none';
+        waitingList.innerHTML = '';
+        return;
+    }
+    waitingStrip.style.display = 'block';
+    waitingCounter.textContent = waiting.length;
+
+    waitingList.innerHTML = '';
+    waiting.forEach(task => {
+        const row = document.createElement('div');
+        row.className = 'waiting-row';
+        // "waiting since today / yesterday / Jul 2"; exact timestamp on hover.
+        row.innerHTML = `
+            <div class="waiting-row-info">
+                <span class="waiting-row-title">${escapeHTML(task.title)}</span>
+                <span class="waiting-row-since" title="since ${formatTimestamp(task.waiting_since)}">waiting since ${formatWaitingSince(task.waiting_since)}</span>
+            </div>
+            <button type="button" class="btn btn-secondary waiting-unwait-btn" data-id="${task.id}">Un-wait</button>
+        `;
+        row.querySelector('.waiting-unwait-btn').addEventListener('click', async (e) => {
+            e.stopPropagation();
+            await unwaitTask(task.id);
+        });
+        waitingList.appendChild(row);
     });
 }
 
@@ -1147,6 +1228,13 @@ function setupEventListeners() {
         const expanded = snoozedStrip.classList.toggle('expanded');
         snoozedList.style.display = expanded ? 'flex' : 'none';
         snoozedStripHeader.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    });
+
+    // Expand/collapse the waiting strip (expanded by default)
+    waitingStripHeader.addEventListener('click', () => {
+        const expanded = waitingStrip.classList.toggle('expanded');
+        waitingList.style.display = expanded ? 'flex' : 'none';
+        waitingStripHeader.setAttribute('aria-expanded', expanded ? 'true' : 'false');
     });
 
     // Expand/collapse the Deleted (Trash) section — folded by default, and its

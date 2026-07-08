@@ -101,6 +101,23 @@ export function formatDoneDate(completedAt) {
     return formatTimestamp(completedAt, 'recently');
 }
 
+// "Waiting since" label for a past UTC timestamp, as a point in time (reads
+// better than a duration): "today", "yesterday", or a short date like "Jul 2".
+// `now` is injectable for testing. Returns '' for empty/unparseable input.
+export function formatWaitingSince(ts, now = Date.now()) {
+    if (!ts) return '';
+    let dateStr = ts;
+    if (!dateStr.includes('T')) {
+        dateStr = dateStr.replace(' ', 'T') + 'Z';
+    }
+    const then = new Date(dateStr);
+    if (isNaN(then.getTime())) return '';
+    const days = Math.floor((now - then.getTime()) / 86400000);
+    if (days <= 0) return 'today';
+    if (days === 1) return 'yesterday';
+    return then.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
 // ===== Search query parsing =====
 
 // Normalise a date token to the *start* of the period it names, as YYYY-MM-DD:

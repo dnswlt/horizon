@@ -1590,6 +1590,25 @@ textarea {
     color-scheme: dark;
 }
 
+/* Divider setting the "Move to Waiting" action apart from the dated snooze
+   options above it — a standalone line so the button keeps its rounded hover. */
+.snooze-divider {
+    border-top: 1px solid var(--border-color);
+    margin: 0.35rem 0.15rem;
+}
+
+/* The chevrons hint at the task sliding off the board. */
+.snooze-waiting-icon {
+    flex-shrink: 0;
+    color: var(--text-muted);
+    transition: transform var(--transition-fast);
+}
+
+.snooze-waiting:hover .snooze-waiting-icon {
+    color: var(--text-secondary);
+    transform: translateX(2px);
+}
+
 /* Collapsed snoozed strip at the bottom of the backlog */
 /* Foldable "Deleted" (Trash) section — mirrors the snoozed strip */
 .deleted-section {
@@ -1704,6 +1723,86 @@ textarea {
 }
 
 .snoozed-unsnooze-btn {
+    flex-shrink: 0;
+    font-size: 0.78rem;
+    padding: 0.35rem 0.75rem;
+}
+
+/* Waiting-for strip — mirrors the snoozed strip (see above), but is expanded by
+   default and shows how long each task has been waiting. */
+.waiting-strip {
+    margin-top: 1rem;
+}
+
+.waiting-strip-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.6rem 0.85rem;
+    background: rgba(15, 23, 42, 0.3);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    color: var(--text-secondary);
+    font-family: var(--font-sans);
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.waiting-strip-header:hover {
+    background: rgba(15, 23, 42, 0.5);
+    color: var(--text-primary);
+}
+
+.waiting-chevron {
+    margin-left: auto;
+    transition: transform var(--transition-fast);
+}
+
+.waiting-strip.expanded .waiting-chevron {
+    transform: rotate(180deg);
+}
+
+.waiting-list {
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-top: 0.6rem;
+}
+
+.waiting-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.6rem 0.85rem;
+    background: rgba(30, 41, 59, 0.2);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+}
+
+.waiting-row-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 0;
+}
+
+.waiting-row-title {
+    font-size: 0.9rem;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.waiting-row-since {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.waiting-unwait-btn {
     flex-shrink: 0;
     font-size: 0.78rem;
     padding: 0.35rem 0.75rem;

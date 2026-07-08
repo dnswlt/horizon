@@ -9,6 +9,7 @@ import {
     parseSearchQuery,
     formatTimestamp,
     formatDoneDate,
+    formatWaitingSince,
 } from '../../static/core.js';
 
 test('escapeHTML escapes the five HTML-significant characters', () => {
@@ -103,4 +104,20 @@ test('formatTimestamp returns the fallback for empty or unparseable input', () =
 test('formatDoneDate falls back to "recently"', () => {
     assert.equal(formatDoneDate(null), 'recently');
     assert.equal(formatDoneDate(''), 'recently');
+});
+
+test('formatWaitingSince renders today/yesterday then a short date', () => {
+    const now = Date.parse('2026-07-08T12:00:00Z');
+    const daysAgo = (n) => new Date(now - n * 86400000).toISOString();
+    assert.equal(formatWaitingSince(daysAgo(0), now), 'today');
+    assert.equal(formatWaitingSince(daysAgo(1), now), 'yesterday');
+    assert.match(formatWaitingSince(daysAgo(6), now), /^[A-Z][a-z]{2} \d{1,2}$/);
+    // SQLite zoneless timestamps are normalised like formatTimestamp.
+    assert.equal(formatWaitingSince('2026-07-07 12:00:00', now), 'yesterday');
+});
+
+test('formatWaitingSince returns empty string for empty/unparseable input', () => {
+    assert.equal(formatWaitingSince(''), '');
+    assert.equal(formatWaitingSince(null), '');
+    assert.equal(formatWaitingSince('nope'), '');
 });
