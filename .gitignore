@@ -1,6 +1,7 @@
 venv/
 .venv/
 tasks.db
+horizon.log
 __pycache__/
 .vscode
 .DS_Store
