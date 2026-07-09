@@ -21,7 +21,8 @@ SQLite file, created automatically on first run.
 ## Windows: build a double-click app
 
 Produces a single `Horizon.exe`. The end user needs nothing installed — they
-double-click it and the app opens in their browser.
+double-click it and the app opens in its own window, with its own taskbar
+icon (a native window via Edge WebView2, which ships with Windows 10/11).
 
 To build, you need [Python](https://www.python.org/downloads/) (tick "Add to
 PATH" when installing). PyInstaller is pulled in automatically by the script:
