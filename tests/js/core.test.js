@@ -5,6 +5,9 @@ import assert from 'node:assert/strict';
 import {
     escapeHTML,
     extractLinks,
+    extractContexts,
+    groupByContext,
+    deriveTaskState,
     parseDateToken,
     parseSearchQuery,
     formatTimestamp,
@@ -43,6 +46,80 @@ test('extractLinks keeps balanced brackets but drops an unbalanced trailing one'
     assert.deepEqual(
         extractLinks('https://en.wikipedia.org/wiki/Foo_(bar)'),
         ['https://en.wikipedia.org/wiki/Foo_(bar)']
+    );
+});
+
+test('extractContexts finds @ tokens across title and description, lowercased and deduped', () => {
+    assert.deepEqual(
+        extractContexts({ title: 'Fix @Work bug @Urgent', description: 'ping @work again' }),
+        ['work', 'urgent']
+    );
+    assert.deepEqual(extractContexts({ title: 'no tags here', description: '' }), []);
+    // A tag at the very start of the text counts (^ boundary).
+    assert.deepEqual(extractContexts({ title: '@work first', description: '' }), ['work']);
+    // Tags after punctuation still count.
+    assert.deepEqual(extractContexts({ title: '(@home)', description: '' }), ['home']);
+});
+
+test('extractContexts ignores # tokens so issue/PR refs are not contexts', () => {
+    assert.deepEqual(extractContexts({ title: 'Review PR #412 @review', description: '' }), ['review']);
+});
+
+test('extractContexts ignores an @ glued to a word char, so emails are not contexts', () => {
+    assert.deepEqual(extractContexts({ title: 'ping me@example.com', description: '' }), []);
+    // A real tag alongside an email is still picked up; the email is not.
+    assert.deepEqual(
+        extractContexts({ title: 'mail bob@corp.com @urgent', description: '' }),
+        ['urgent']
+    );
+});
+
+test('groupByContext buckets tasks per tag, sorts alphabetically, untagged last', () => {
+    const tasks = [
+        { id: '1', title: 'A @work' },
+        { id: '2', title: 'B @home @work' },
+        { id: '3', title: 'C no tags' },
+    ];
+    const groups = groupByContext(tasks);
+    assert.deepEqual(groups.map(g => g.context), ['home', 'work', null]);
+    assert.deepEqual(groups.find(g => g.context === 'work').tasks.map(t => t.id), ['1', '2']);
+    assert.deepEqual(groups.find(g => g.context === 'home').tasks.map(t => t.id), ['2']);
+    assert.deepEqual(groups.find(g => g.context === null).tasks.map(t => t.id), ['3']);
+});
+
+test('groupByContext omits the untagged bucket when every task has a tag', () => {
+    const groups = groupByContext([{ id: '1', title: '@work' }]);
+    assert.deepEqual(groups.map(g => g.context), ['work']);
+});
+
+test('groupByContext preserves input order within a bucket', () => {
+    const tasks = [
+        { id: '3', title: '@x' },
+        { id: '1', title: '@x' },
+        { id: '2', title: '@x' },
+    ];
+    assert.deepEqual(groupByContext(tasks)[0].tasks.map(t => t.id), ['3', '1', '2']);
+});
+
+test('deriveTaskState prioritises waiting, then snooze, then backlog, then scheduled', () => {
+    const today = '2026-07-10';
+    assert.deepEqual(
+        deriveTaskState({ waiting_since: '2026-07-01 09:00:00', defer_until: '2026-08-01', due_date: '2026-07-15' }, today),
+        { kind: 'waiting', date: null }
+    );
+    assert.deepEqual(
+        deriveTaskState({ defer_until: '2026-08-01', due_date: '2026-07-15' }, today),
+        { kind: 'snoozed', date: '2026-08-01' }
+    );
+    // A past/today defer_until no longer snoozes: falls through to its due date.
+    assert.deepEqual(
+        deriveTaskState({ defer_until: '2026-07-10', due_date: '2026-07-15' }, today),
+        { kind: 'scheduled', date: '2026-07-15' }
+    );
+    assert.deepEqual(deriveTaskState({ due_date: null }, today), { kind: 'backlog', date: null });
+    assert.deepEqual(
+        deriveTaskState({ due_date: '2026-07-15' }, today),
+        { kind: 'scheduled', date: '2026-07-15' }
     );
 });
 

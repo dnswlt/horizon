@@ -1272,6 +1272,107 @@ textarea {
 .archive-item.color-yellow { border-left: 4px solid #f59e0b; }
 .archive-item.color-purple { border-left: 4px solid #8b5cf6; }
 
+/* Contexts tab: a responsive grid of context cards, each listing its open
+   tasks. Read-only overview — clicking a row opens the task modal. */
+.contexts-section .section-title {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.35rem;
+}
+
+/* Multi-column (masonry-style) packing: each column fills independently, so a
+   busy context doesn't leave dead space under its shorter neighbours. Cards flow
+   top-to-bottom then across, so alphabetical reads down each column in turn. */
+.contexts-grid {
+    column-width: 300px;
+    column-gap: 1.25rem;
+}
+
+.context-card {
+    break-inside: avoid;
+    margin-bottom: 1.25rem;
+    background: rgba(15, 23, 42, 0.4);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    transition: border-color var(--transition-fast);
+}
+
+.context-card:hover {
+    border-color: var(--border-color-hover);
+}
+
+.context-card.color-red { border-left: 4px solid #ef4444; }
+.context-card.color-green { border-left: 4px solid #10b981; }
+.context-card.color-blue { border-left: 4px solid #3b82f6; }
+.context-card.color-yellow { border-left: 4px solid #f59e0b; }
+.context-card.color-purple { border-left: 4px solid #8b5cf6; }
+
+.context-card-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--border-color);
+    background: rgba(30, 41, 59, 0.35);
+}
+
+.context-card-title {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--text-primary);
+    flex-grow: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.context-card-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.context-task {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.6rem 1rem;
+    cursor: default;
+    transition: background var(--transition-fast);
+}
+
+.context-task:not(:last-child) {
+    border-bottom: 1px solid var(--border-color);
+}
+
+.context-task:hover {
+    background: rgba(30, 41, 59, 0.35);
+}
+
+.context-task-title {
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    word-break: break-word;
+}
+
+.context-state {
+    flex-shrink: 0;
+    font-size: 0.7rem;
+    font-weight: 500;
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    white-space: nowrap;
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+    background: rgba(30, 41, 59, 0.4);
+}
+
+.context-state.waiting { color: #f59e0b; border-color: rgba(245, 158, 11, 0.35); }
+.context-state.snoozed { color: #8b5cf6; border-color: rgba(139, 92, 246, 0.35); }
+.context-state.backlog { color: var(--text-muted); }
+.context-state.scheduled { color: #3b82f6; border-color: rgba(59, 130, 246, 0.35); }
+
 /* Settings Dropdown CSS */
 .settings-dropdown-wrapper {
     position: relative;

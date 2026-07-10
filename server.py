@@ -269,6 +269,25 @@ def get_tasks():
     conn.close()
     return [dict(r) for r in rows]
 
+@app.get("/api/tasks/open")
+def get_open_tasks():
+    # Every open task, for the Contexts tab's "everything on my plate" overview.
+    # Unlike /api/tasks (the board) this applies no horizon filtering: snoozed,
+    # waiting, backlog and scheduled tasks are all included. It stays ignorant of
+    # @context tags — the client groups by tag. Ordered by due date (undated
+    # backlog last) so each context bucket reads soonest-first.
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT * FROM tasks
+        WHERE completed = 0
+          AND deleted_at IS NULL
+        ORDER BY due_date IS NULL, due_date ASC, position ASC
+    """)
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
 @app.get("/api/tasks/waiting")
 def get_waiting_tasks():
     # "Waiting For" list: parked tasks blocked on someone else, no wake date.

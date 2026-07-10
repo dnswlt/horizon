@@ -4,13 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Horizon</title>
-    <link rel="icon" type="image/png" href="/static/favicon.png?v=34">
-    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v=34">
-    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=34">
+    <link rel="icon" type="image/png" href="/static/favicon.png?v=40">
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v=40">
+    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=40">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css?v=34">
+    <link rel="stylesheet" href="/static/style.css?v=40">
 </head>
 <body>
     <!-- App Container -->
@@ -41,6 +41,15 @@
                         <line x1="15" y1="3" x2="15" y2="21"></line>
                     </svg>
                     Horizon
+                </button>
+                <button class="tab-btn" id="tab-contexts" data-tab="contexts">
+                    <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="6" cy="6" r="3"></circle>
+                        <circle cx="6" cy="18" r="3"></circle>
+                        <circle cx="18" cy="6" r="3"></circle>
+                        <circle cx="18" cy="18" r="3"></circle>
+                    </svg>
+                    Contexts
                 </button>
                 <button class="tab-btn" id="tab-archive" data-tab="archive">
                     <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round">
@@ -242,6 +251,29 @@
                 </section>
             </div>
 
+            <!-- Contexts View: every open task grouped by @context tag -->
+            <div id="view-contexts" class="tab-view">
+                <section class="contexts-section">
+                    <div class="section-title">
+                        <h2>Contexts</h2>
+                        <p class="settings-hint">Every open task on your plate, grouped by <code>@context</code>.</p>
+                    </div>
+                    <div id="contexts-empty-msg" class="archive-empty">
+                        <svg viewBox="0 0 24 24" width="48" height="48" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="6" cy="6" r="3"></circle>
+                            <circle cx="6" cy="18" r="3"></circle>
+                            <circle cx="18" cy="6" r="3"></circle>
+                            <circle cx="18" cy="18" r="3"></circle>
+                        </svg>
+                        <p>No open tasks</p>
+                        <span>Tag tasks with <code>@keyword</code> and they'll gather here by context.</span>
+                    </div>
+                    <div class="contexts-grid" id="contexts-grid">
+                        <!-- Dynamic context cards -->
+                    </div>
+                </section>
+            </div>
+
             <!-- Search View -->
             <div id="view-search" class="tab-view">
                 <section class="archive-section">
@@ -361,6 +393,6 @@
     <!-- Toast Notifications -->
     <div id="toast-container"></div>
 
-    <script type="module" src="/static/app.js?v=34"></script>
+    <script type="module" src="/static/app.js?v=40"></script>
 </body>
 </html>

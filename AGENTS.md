@@ -60,8 +60,12 @@ Columns of note: `id` (uuid), `title`, `description`, `due_date`
 `defer_until` (snooze date), and `created_at`.
 
 Tasks have **no color column**. A card's color is derived on the client from
-the first configured `@keyword`/`#keyword` context token in its title or
-description (see the `contexts` setting below).
+the first configured `@keyword` context token in its title or description (see
+the `contexts` setting below). Tag parsing lives in one place —
+`extractContexts()` in `core.js`, which `deriveColor()` reuses. Only `@` marks a
+context, and only when it starts the text or follows a non-word character, so
+issue/PR refs like `#412` and email addresses like `me@example.com` are **not**
+treated as tags.
 
 There is also a `settings` key-value table for app preferences, stored as JSON
 strings. The `contexts` entry maps each palette color to a context keyword

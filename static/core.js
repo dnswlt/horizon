@@ -118,6 +118,68 @@ export function formatWaitingSince(ts, now = Date.now()) {
     return then.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
+// ===== Context grouping (Contexts tab) =====
+
+// Distinct @context tokens mentioned in a task's title or description,
+// lowercased and de-duplicated, in first-seen order. This is the single source
+// of truth for "what is a tag" — deriveColor() in app.js builds on it too.
+//
+// A context '@' must start the text or follow a non-word character, so a tag is
+// only recognised where a human would read one. Deliberately NOT tags:
+//   - '#412'         '#' is an issue/PR marker, not a context prefix
+//   - 'me@host.com'  the '@' is glued to a word char (an email), not a context
+export function extractContexts(task) {
+    const text = `${task.title || ''} ${task.description || ''}`;
+    const re = /(?:^|[^\w])@([\w-]+)/g;
+    const seen = [];
+    let m;
+    while ((m = re.exec(text)) !== null) {
+        const tag = m[1].toLowerCase();
+        if (!seen.includes(tag)) seen.push(tag);
+    }
+    return seen;
+}
+
+// Group open tasks by context for the Contexts tab. Returns an array of
+// { context, tasks } buckets sorted alphabetically by context name; a task with
+// several tags appears in each of its buckets. Tasks with no tag collect into a
+// trailing bucket with context === null. Within a bucket the input order is
+// preserved (the endpoint already sorts by due date). Empty buckets are omitted.
+export function groupByContext(tasks) {
+    const buckets = new Map();  // context -> tasks[]
+    const untagged = [];
+    for (const task of tasks) {
+        const contexts = extractContexts(task);
+        if (contexts.length === 0) {
+            untagged.push(task);
+            continue;
+        }
+        for (const ctx of contexts) {
+            if (!buckets.has(ctx)) buckets.set(ctx, []);
+            buckets.get(ctx).push(task);
+        }
+    }
+    const groups = [...buckets.keys()]
+        .sort()
+        .map(context => ({ context, tasks: buckets.get(context) }));
+    if (untagged.length) groups.push({ context: null, tasks: untagged });
+    return groups;
+}
+
+// Classify where an open task currently sits, for the state mark shown in the
+// Contexts tab. `today` is an injectable local YYYY-MM-DD (defaults to now).
+// Order matters: waiting and snooze take the task off the board, so they win
+// over its due date; an undated task is Backlog; otherwise it's scheduled.
+// Returns { kind, date } where date is the relevant YYYY-MM-DD (or null).
+export function deriveTaskState(task, today = getLocalDateString()) {
+    if (task.waiting_since) return { kind: 'waiting', date: null };
+    if (task.defer_until && task.defer_until > today) {
+        return { kind: 'snoozed', date: task.defer_until };
+    }
+    if (!task.due_date) return { kind: 'backlog', date: null };
+    return { kind: 'scheduled', date: task.due_date };
+}
+
 // ===== Search query parsing =====
 
 // Normalise a date token to the *start* of the period it names, as YYYY-MM-DD:

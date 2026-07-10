@@ -9,7 +9,10 @@ import {
     formatDoneDate,
     formatWaitingSince,
     parseSearchQuery,
-} from './core.js?v=34';
+    extractContexts,
+    groupByContext,
+    deriveTaskState,
+} from './core.js?v=40';
 
 // App State
 let tasks = [];
@@ -64,6 +67,12 @@ const deletedToggle = document.getElementById('deleted-toggle');
 const deletedListContainer = document.getElementById('deleted-list-container');
 const toggleCompletedBtn = document.getElementById('toggle-completed-btn');
 
+// Contexts Elements
+const tabContexts = document.getElementById('tab-contexts');
+const viewContexts = document.getElementById('view-contexts');
+const contextsGrid = document.getElementById('contexts-grid');
+const contextsEmptyMsg = document.getElementById('contexts-empty-msg');
+
 // Search Elements
 const tabSearch = document.getElementById('tab-search');
 const viewSearch = document.getElementById('view-search');
@@ -83,7 +92,7 @@ let searchTimer = null;
 
 // Contexts state: maps each palette color to a context keyword (e.g.
 // { red: 'urgent', blue: 'work', ... }). A task is painted a color when its
-// text mentions the matching @keyword/#keyword. Overwritten by server on load.
+// text mentions the matching @keyword. Overwritten by server on load.
 let contexts = {
     red: 'urgent',
     green: 'review',
@@ -102,14 +111,12 @@ function rebuildContextColorMap() {
     }
 }
 
-// Derive a task's color from the first configured @context/#context token in
-// its title or description. Returns a color name or null.
+// Derive a task's color from the first configured @context token in its title
+// or description. Reuses extractContexts() so tag parsing lives in one place.
+// Returns a color name or null.
 function deriveColor(task) {
-    const text = `${task.title || ''} ${task.description || ''}`;
-    const re = /[@#]([\w-]+)/g;
-    let m;
-    while ((m = re.exec(text)) !== null) {
-        const color = contextColorMap[m[1].toLowerCase()];
+    for (const tag of extractContexts(task)) {
+        const color = contextColorMap[tag];
         if (color) return color;
     }
     return null;
@@ -1176,6 +1183,8 @@ taskForm.addEventListener('submit', async (e) => {
             performSearch();
         } else if (viewArchive.classList.contains('active')) {
             fetchArchivedTasks(true);
+        } else if (viewContexts.classList.contains('active')) {
+            fetchOpenTasks();
         }
     } catch (err) {
         showToast(err.message, 'error');
@@ -1191,6 +1200,7 @@ const SHORTCUTS = {
     '/': { label: 'Search',              run: () => switchTab('search') },
     'h': { label: 'Horizon board',       run: () => switchTab('planner') },
     'a': { label: 'Archive',             run: () => switchTab('archive') },
+    'c': { label: 'Contexts',            run: () => switchTab('contexts') },
     '?': { label: 'Toggle this help',    run: () => toggleShortcutHelp() },
 };
 
@@ -1335,6 +1345,7 @@ function setupEventListeners() {
     // Tab switching
     tabPlanner.addEventListener('click', () => switchTab('planner'));
     tabArchive.addEventListener('click', () => switchTab('archive'));
+    tabContexts.addEventListener('click', () => switchTab('contexts'));
     tabSearch.addEventListener('click', () => switchTab('search'));
 
     // Search
@@ -1404,8 +1415,8 @@ function setupEventListeners() {
 
 // Tab Switching logic
 async function switchTab(tabId) {
-    const tabs = { planner: tabPlanner, archive: tabArchive, search: tabSearch };
-    const views = { planner: viewPlanner, archive: viewArchive, search: viewSearch };
+    const tabs = { planner: tabPlanner, archive: tabArchive, contexts: tabContexts, search: tabSearch };
+    const views = { planner: viewPlanner, archive: viewArchive, contexts: viewContexts, search: viewSearch };
     Object.keys(tabs).forEach(id => {
         tabs[id].classList.toggle('active', id === tabId);
         views[id].classList.toggle('active', id === tabId);
@@ -1414,6 +1425,8 @@ async function switchTab(tabId) {
     if (tabId === 'archive') {
         await fetchArchivedTasks(true);
         await fetchDeletedTasks(true);
+    } else if (tabId === 'contexts') {
+        await fetchOpenTasks();
     } else if (tabId === 'search') {
         searchInput.focus();
         performSearch();
@@ -1439,6 +1452,75 @@ async function fetchArchivedTasks(replace = false) {
     } catch (err) {
         showToast(err.message, 'error');
     }
+}
+
+// Contexts Functions
+
+// The Contexts tab: fetch every open task and group it by @context tag. A
+// read-only "what's on my plate overall" lens — clicking a row opens the task.
+async function fetchOpenTasks() {
+    try {
+        const open = await apiFetch('/api/tasks/open', { errorMessage: 'Failed to load open tasks' });
+        renderContexts(open);
+    } catch (err) {
+        showToast(err.message, 'error');
+    }
+}
+
+function renderContexts(openTasks) {
+    contextsGrid.innerHTML = '';
+    if (openTasks.length === 0) {
+        contextsEmptyMsg.style.display = 'flex';
+        return;
+    }
+    contextsEmptyMsg.style.display = 'none';
+
+    const today = getLocalDateString();
+    groupByContext(openTasks).forEach(group => {
+        // Colour the card only when the context maps to a configured palette slot.
+        const color = group.context ? contextColorMap[group.context] : null;
+        const label = group.context ? `@${escapeHTML(group.context)}` : 'Untagged';
+        const dot = color ? `<span class="color-dot-indicator color-${color}"></span>` : '';
+
+        const card = document.createElement('div');
+        card.className = `context-card ${color ? 'color-' + color : ''}`;
+        card.innerHTML = `
+            <div class="context-card-header">
+                ${dot}
+                <span class="context-card-title">${label}</span>
+                <span class="counter">${group.tasks.length}</span>
+            </div>
+            <div class="context-card-list">
+                ${group.tasks.map(task => contextTaskRow(task, today)).join('')}
+            </div>
+        `;
+
+        // Double-click to open, matching the board card convention.
+        card.querySelectorAll('.context-task').forEach(row => {
+            const task = group.tasks.find(t => t.id === row.dataset.id);
+            row.addEventListener('dblclick', () => openModal(task));
+        });
+
+        contextsGrid.appendChild(card);
+    });
+}
+
+// One task row inside a context card: title plus a mark for where it currently
+// sits (Waiting / Snoozed / Backlog / a due date), derived from its own fields.
+function contextTaskRow(task, today) {
+    const { kind, date } = deriveTaskState(task, today);
+    const marks = {
+        waiting: '<span class="context-state waiting">Waiting</span>',
+        snoozed: `<span class="context-state snoozed">Snoozed · ${date ? formatShortDate(date) : ''}</span>`,
+        backlog: '<span class="context-state backlog">Backlog</span>',
+        scheduled: `<span class="context-state scheduled">${date ? formatShortDate(date) : ''}</span>`,
+    };
+    return `
+        <div class="context-task" data-id="${escapeHTML(task.id)}">
+            <span class="context-task-title">${escapeHTML(task.title)}</span>
+            ${marks[kind]}
+        </div>
+    `;
 }
 
 // Search Functions
