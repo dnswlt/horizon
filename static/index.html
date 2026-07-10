@@ -4,13 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Horizon</title>
-    <link rel="icon" type="image/png" href="/static/favicon.png?v=40">
-    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v=40">
-    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=40">
+    <link rel="icon" type="image/png" href="/static/favicon.png?v=48">
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v=48">
+    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=48">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css?v=40">
+    <link rel="stylesheet" href="/static/style.css?v=48">
 </head>
 <body>
     <!-- App Container -->
@@ -332,7 +332,21 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="task-description">Description</label>
+                        <div class="label-row">
+                            <label for="task-description">Description</label>
+                            <span class="hint-icon" tabindex="0" role="button" aria-label="How links work">
+                                <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <line x1="12" y1="16" x2="12" y2="12"></line>
+                                    <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                                </svg>
+                                <span class="hint-bubble" role="tooltip">
+                                    Any URL becomes a clickable chip. To name one, put a
+                                    label before it on its own line:
+                                    <span class="hint-example">Design doc | https://example.com/spec</span>
+                                </span>
+                            </span>
+                        </div>
                         <textarea id="task-description" placeholder="Add some details..." rows="3"></textarea>
                         <div id="desc-links" class="desc-links" style="display: none;"></div>
                     </div>
@@ -393,6 +407,6 @@
     <!-- Toast Notifications -->
     <div id="toast-container"></div>
 
-    <script type="module" src="/static/app.js?v=40"></script>
+    <script type="module" src="/static/app.js?v=48"></script>
 </body>
 </html>

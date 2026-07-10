@@ -852,6 +852,72 @@ select:focus {
     margin-top: 0.25rem;
 }
 
+/* Label row with a trailing info icon (e.g. Description link help). */
+.label-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.hint-icon {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    color: var(--text-muted);
+    cursor: help;
+    transition: color var(--transition-fast);
+}
+
+.hint-icon:hover,
+.hint-icon:focus-visible {
+    color: var(--primary);
+    outline: none;
+}
+
+/* Tooltip bubble: hidden until the icon is hovered or keyboard-focused. */
+.hint-bubble {
+    display: none;
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    z-index: 20;
+    width: 280px;
+    padding: 0.7rem 0.8rem;
+    font-size: 0.78rem;
+    font-weight: 400;
+    line-height: 1.5;
+    color: var(--text-secondary);
+    background: var(--bg-surface-header);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+}
+
+.hint-icon:hover .hint-bubble,
+.hint-icon:focus-within .hint-bubble,
+.hint-icon:focus .hint-bubble {
+    display: block;
+}
+
+.hint-bubble code {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.06);
+    padding: 0.05rem 0.25rem;
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+}
+
+.hint-bubble .hint-example {
+    display: block;
+    margin-top: 0.4rem;
+    word-break: break-all;
+}
+
+.hint-bubble strong {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
 .label-hint {
     font-weight: 400;
     color: var(--text-muted);
@@ -1481,7 +1547,7 @@ textarea {
 /* Description Links (in edit modal) */
 .desc-links {
     display: flex;
-    flex-direction: column;
+    flex-wrap: wrap;
     gap: 0.35rem;
     margin-top: 0.6rem;
 }

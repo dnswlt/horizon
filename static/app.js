@@ -1,6 +1,7 @@
 import {
     escapeHTML,
-    extractLinks,
+    extractDescLinks,
+    formatLinkLabel,
     getLocalDateString,
     formatShortDate,
     nextWeekdayDateString,
@@ -12,7 +13,7 @@ import {
     extractContexts,
     groupByContext,
     deriveTaskState,
-} from './core.js?v=40';
+} from './core.js?v=48';
 
 // App State
 let tasks = [];
@@ -1826,22 +1827,25 @@ function showToast(message, type = 'success') {
     }, 3000);
 }
 
-// Render clickable links found in the description textarea (opens in new tab)
+// Render clickable links found in the description textarea (opens in new tab).
+// A chip shows its "label | url" name if given, otherwise just the host.
 function renderDescLinks() {
-    const urls = extractLinks(taskDescInput.value);
-    if (urls.length === 0) {
+    const links = extractDescLinks(taskDescInput.value);
+    if (links.length === 0) {
         descLinks.style.display = 'none';
         descLinks.innerHTML = '';
         return;
     }
-    descLinks.innerHTML = urls.map(url => {
+    descLinks.innerHTML = links.map(({ url, label }) => {
         const safe = escapeHTML(url);
+        // The full URL stays in href + tooltip; the chip text is short.
+        const text = escapeHTML(label || formatLinkLabel(url));
         return `<a href="${safe}" class="desc-link" target="_blank" rel="noopener noreferrer" title="${safe}">
             <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
                 <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
             </svg>
-            <span class="desc-link-text">${safe}</span>
+            <span class="desc-link-text">${text}</span>
         </a>`;
     }).join('');
     descLinks.style.display = 'flex';

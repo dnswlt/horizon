@@ -5,6 +5,8 @@ import assert from 'node:assert/strict';
 import {
     escapeHTML,
     extractLinks,
+    extractDescLinks,
+    formatLinkLabel,
     extractContexts,
     groupByContext,
     deriveTaskState,
@@ -121,6 +123,56 @@ test('deriveTaskState prioritises waiting, then snooze, then backlog, then sched
         deriveTaskState({ due_date: '2026-07-15' }, today),
         { kind: 'scheduled', date: '2026-07-15' }
     );
+});
+
+test('extractDescLinks reads a "label | url" pipe link', () => {
+    assert.deepEqual(
+        extractDescLinks('Design doc | https://www.example.com/something/serious'),
+        [{ url: 'https://www.example.com/something/serious', label: 'Design doc' }]
+    );
+});
+
+test('extractDescLinks still picks up bare URLs with a null label', () => {
+    assert.deepEqual(
+        extractDescLinks('see https://a.com for details'),
+        [{ url: 'https://a.com', label: null }]
+    );
+});
+
+test('extractDescLinks trims trailing punctuation on a pipe URL and trims the label', () => {
+    assert.deepEqual(
+        extractDescLinks('  Spec   | https://a.com/x?y=1.'),
+        [{ url: 'https://a.com/x?y=1', label: 'Spec' }]
+    );
+});
+
+test('extractDescLinks mixes labelled and bare links in document order (label is line-scoped)', () => {
+    assert.deepEqual(
+        extractDescLinks('intro https://bare.com\nNamed | https://named.com'),
+        [
+            { url: 'https://bare.com', label: null },
+            { url: 'https://named.com', label: 'Named' },
+        ]
+    );
+});
+
+test('extractDescLinks dedupes by url, keeping the labelled occurrence', () => {
+    assert.deepEqual(
+        extractDescLinks('Doc | https://a.com\nagain https://a.com'),
+        [{ url: 'https://a.com', label: 'Doc' }]
+    );
+});
+
+test('extractDescLinks returns nothing for text without links', () => {
+    assert.deepEqual(extractDescLinks('just a plain note | not a url'), []);
+});
+
+test('formatLinkLabel reduces a URL to its host', () => {
+    assert.equal(formatLinkLabel('https://www.example.com/something/serious'), 'www.example.com');
+    assert.equal(formatLinkLabel('http://a.com'), 'a.com');
+    assert.equal(formatLinkLabel('https://sub.host.co.uk:8443/x?y=1'), 'sub.host.co.uk');
+    // Not a parseable URL: fall back to the input unchanged.
+    assert.equal(formatLinkLabel('not a url'), 'not a url');
 });
 
 test('parseDateToken anchors partial dates to the start of the period', () => {

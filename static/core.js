@@ -14,34 +14,94 @@ export function escapeHTML(str) {
         .replace(/'/g, '&#039;');
 }
 
-// Extract http(s) URLs from text, trimming trailing sentence punctuation and
-// unbalanced closing brackets (e.g. a URL wrapped in parentheses).
+// Trim trailing sentence punctuation and unbalanced closing brackets from a URL
+// (e.g. a URL wrapped in parentheses, or one ending a sentence).
+function trimUrl(url) {
+    let changed = true;
+    while (changed && url) {
+        changed = false;
+        const c = url[url.length - 1];
+        if ('.,;:!?\'"'.includes(c)) {
+            url = url.slice(0, -1);
+            changed = true;
+        } else if (')]}'.includes(c)) {
+            const open = c === ')' ? '(' : c === ']' ? '[' : '{';
+            const opens = url.split(open).length - 1;
+            const closes = url.split(c).length - 1;
+            if (closes > opens) {
+                url = url.slice(0, -1);
+                changed = true;
+            }
+        }
+    }
+    return url;
+}
+
+// Extract http(s) URLs from text, trimming trailing punctuation/brackets.
 export function extractLinks(text) {
     const urlRegex = /https?:\/\/[^\s<]+/g;
     const urls = [];
     let m;
     while ((m = urlRegex.exec(text)) !== null) {
-        let url = m[0];
-        let changed = true;
-        while (changed && url) {
-            changed = false;
-            const c = url[url.length - 1];
-            if ('.,;:!?\'"'.includes(c)) {
-                url = url.slice(0, -1);
-                changed = true;
-            } else if (')]}'.includes(c)) {
-                const open = c === ')' ? '(' : c === ']' ? '[' : '{';
-                const opens = url.split(open).length - 1;
-                const closes = url.split(c).length - 1;
-                if (closes > opens) {
-                    url = url.slice(0, -1);
-                    changed = true;
-                }
-            }
-        }
+        const url = trimUrl(m[0]);
         if (url && !urls.includes(url)) urls.push(url);
     }
     return urls;
+}
+
+// Parse a task description into link chips. Recognises "label | url" (label
+// first, pipe-delimited) so a link can carry a short name; any other http(s)
+// URL is picked up bare. Returns [{ url, label }] in document order, deduped by
+// url, where `label` is the trimmed pipe label or null for a bare URL. Only
+// http(s) URLs are matched, so a chip href can never be a javascript: scheme.
+export function extractDescLinks(text) {
+    const found = [];       // { url, label, index }
+    const seen = new Set();
+
+    // "label | url": the label is the text before " | " on the same line — no
+    // pipe, no newline — kept non-greedy so it stays as short as the text allows.
+    const pipeRe = /([^\n|]+?)\s*\|\s*(https?:\/\/[^\s<]+)/g;
+    const spans = [];       // char ranges of matched URLs, to blank out below
+    let m;
+    while ((m = pipeRe.exec(text)) !== null) {
+        const url = trimUrl(m[2]);
+        if (!url) continue;
+        const urlStart = m.index + m[0].length - m[2].length;
+        spans.push([urlStart, urlStart + url.length]);
+        if (seen.has(url)) continue;
+        seen.add(url);
+        found.push({ url, label: m[1].trim() || null, index: urlStart });
+    }
+
+    // Blank the matched URLs so extractLinks() won't re-report them as bare.
+    let bare = text;
+    if (spans.length) {
+        const chars = text.split('');
+        for (const [s, e] of spans) {
+            for (let i = s; i < e; i++) chars[i] = ' ';
+        }
+        bare = chars.join('');
+    }
+    for (const url of extractLinks(bare)) {
+        if (seen.has(url)) continue;
+        seen.add(url);
+        found.push({ url, label: null, index: bare.indexOf(url) });
+    }
+
+    found.sort((a, b) => a.index - b.index);
+    return found.map(({ url, label }) => ({ url, label }));
+}
+
+// Short display label for a link chip: just the host, so
+// "https://www.example.com/a/b/c" shows as "www.example.com". Falls back to the
+// full string if it doesn't parse as a URL (extractLinks only yields http(s),
+// so that's a belt-and-braces guard).
+export function formatLinkLabel(url) {
+    try {
+        return new URL(url).hostname;
+    } catch {
+        return url;
+    }
 }
 
 // ===== Date helpers =====
