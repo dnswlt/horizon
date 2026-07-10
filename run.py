@@ -23,6 +23,22 @@ HOST = "127.0.0.1"
 PORT = 8063
 URL = f"http://{HOST}:{PORT}"
 
+# WebView2 doesn't wire up the browser's Ctrl-R / F5 reload shortcuts, so there
+# is no built-in way to refresh the page in the packaged app. Inject our own
+# keydown listener that calls location.reload(). This lives only in the
+# WebView2 entrypoint, so the browser dev build never captures these keys.
+RELOAD_JS = """
+document.addEventListener('keydown', function (e) {
+    var isReload = e.key === 'F5' ||
+        ((e.ctrlKey || e.metaKey) && (e.key === 'r' || e.key === 'R') &&
+         !e.shiftKey && !e.altKey);
+    if (isReload) {
+        e.preventDefault();
+        window.location.reload();
+    }
+});
+"""
+
 
 def _base_dir():
     """Directory to write runtime files into: next to the .exe when frozen,
@@ -73,7 +89,10 @@ if __name__ == "__main__":
         # the process exits, taking the server thread down with it.
         threading.Thread(target=serve, daemon=True).start()
         wait_until_ready()
-        webview.create_window("Horizon", URL, width=1200, height=800)
+        window = webview.create_window("Horizon", URL, width=1200, height=800)
+        # Re-inject on every page load: a reload replaces the document and drops
+        # the previous listener, so the handler must be re-added each time.
+        window.events.loaded += lambda *args: window.evaluate_js(RELOAD_JS)
         webview.start()
     except Exception:
         logging.exception("Horizon failed to start")
