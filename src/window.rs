@@ -140,7 +140,14 @@ fn open_in_browser_impl(url: &str) {
     }
 }
 
-#[cfg(not(windows))]
+#[cfg(target_os = "macos")]
+fn open_in_browser_impl(url: &str) {
+    if let Err(e) = std::process::Command::new("open").arg(url).spawn() {
+        log::warn!("failed to open {url} in the default browser: {e}");
+    }
+}
+
+#[cfg(not(any(windows, target_os = "macos")))]
 fn open_in_browser_impl(url: &str) {
     if let Err(e) = std::process::Command::new("xdg-open").arg(url).spawn() {
         log::warn!("failed to open {url} in the default browser: {e}");
