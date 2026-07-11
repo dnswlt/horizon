@@ -70,6 +70,42 @@ def serve():
         logging.exception("uvicorn server crashed")
 
 
+def apply_dark_titlebar():
+    """Make the native window's title bar dark to match the app's dark theme.
+
+    Windows draws the title bar itself, so CSS can't touch it. We use the DWM
+    (Desktop Window Manager) API: DWMWA_USE_IMMERSIVE_DARK_MODE gives the
+    standard dark caption (Win10 1809+), and DWMWA_CAPTION_COLOR paints it the
+    exact app background (--bg-app, #080c14) on Win11 22000+. Runs via
+    webview.start(func); the window may not be titled yet, so we retry."""
+    if sys.platform != "win32":
+        return
+    import ctypes
+
+    hwnd = 0
+    deadline = time.monotonic() + 5.0
+    while time.monotonic() < deadline:
+        hwnd = ctypes.windll.user32.FindWindowW(None, "Horizon")
+        if hwnd:
+            break
+        time.sleep(0.1)
+    if not hwnd:
+        return
+
+    dwm = ctypes.windll.dwmapi
+    # DWMWA_USE_IMMERSIVE_DARK_MODE is 20 on current Windows, 19 on Win10
+    # builds 18985..19040; try both so older builds still darken.
+    enabled = ctypes.c_int(1)
+    for attr in (20, 19):
+        dwm.DwmSetWindowAttribute(
+            hwnd, attr, ctypes.byref(enabled), ctypes.sizeof(enabled))
+    # DWMWA_CAPTION_COLOR (35) wants a COLORREF (0x00BBGGRR). #080c14 ->
+    # R=0x08 G=0x0c B=0x14. Ignored (harmless) on Windows < 11 22000.
+    caption = ctypes.c_int(0x00140C08)
+    dwm.DwmSetWindowAttribute(
+        hwnd, 35, ctypes.byref(caption), ctypes.sizeof(caption))
+
+
 def wait_until_ready(timeout=15.0):
     """Block until the server accepts connections, so the window never opens
     on a not-yet-bound port and shows a connection error."""
@@ -93,7 +129,9 @@ if __name__ == "__main__":
         # Re-inject on every page load: a reload replaces the document and drops
         # the previous listener, so the handler must be re-added each time.
         window.events.loaded += lambda *args: window.evaluate_js(RELOAD_JS)
-        webview.start()
+        # func runs in a worker thread once the GUI loop is up, so it can find
+        # and restyle the now-created native window without blocking it.
+        webview.start(apply_dark_titlebar)
     except Exception:
         logging.exception("Horizon failed to start")
         raise
