@@ -13,7 +13,7 @@ import {
     extractContexts,
     groupByContext,
     deriveTaskState,
-} from './core.js?v=48';
+} from './core.js?v=49';
 
 // App State
 let tasks = [];
@@ -141,9 +141,15 @@ async function apiFetch(url, { method = 'GET', body, errorMessage } = {}) {
     return text ? JSON.parse(text) : null;
 }
 
-// Sugar for the most common call: PUT a partial task update to /api/tasks/:id.
-const patchTask = (id, fields, errorMessage) =>
-    apiFetch(`/api/tasks/${id}`, { method: 'PUT', body: fields, errorMessage });
+// Sugar for the intent endpoints (complete/snooze/wait/restore): POST one
+// state change for a task. `body` may be undefined for body-less actions.
+const postTaskAction = (id, action, body, errorMessage) =>
+    apiFetch(`/api/tasks/${id}/${action}`, { method: 'POST', body, errorMessage });
+
+// Content edits (title/description/due_date). The server expects the full
+// set every time; due_date: null moves the task to the backlog.
+const editTaskContent = (id, fields, errorMessage) =>
+    apiFetch(`/api/tasks/${id}`, { method: 'PATCH', body: fields, errorMessage });
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -514,7 +520,7 @@ function createCardElement(task) {
 // Toggle task completion
 async function toggleTaskCompletion(id, completed, cardEl) {
     try {
-        await patchTask(id, { completed }, 'Could not update task status');
+        await postTaskAction(id, 'complete', { completed }, 'Could not update task status');
 
         // Find local task and update
         const taskIdx = tasks.findIndex(t => t.id === id);
@@ -540,7 +546,7 @@ async function toggleTaskCompletion(id, completed, cardEl) {
 // there is no card element to toggle in place)
 async function setTaskCompleted(id, completed) {
     try {
-        await patchTask(id, { completed }, 'Could not update task status');
+        await postTaskAction(id, 'complete', { completed }, 'Could not update task status');
 
         showToast(completed ? 'Task completed!' : 'Task reopened.');
         await fetchTasks();     // keep the Horizon board in sync
@@ -656,7 +662,7 @@ function openSnoozePopover(anchorEl, task) {
 
 async function snoozeTask(task, dateString) {
     try {
-        await patchTask(task.id, { defer_until: dateString, due_date: null }, 'Failed to snooze task');
+        await postTaskAction(task.id, 'snooze', { until: dateString }, 'Failed to snooze task');
         await fetchTasks();
         showToast(`Snoozed until ${formatShortDate(dateString)}.`);
     } catch (err) {
@@ -667,7 +673,7 @@ async function snoozeTask(task, dateString) {
 // notify=false is used for the resurfaced-badge dismiss (silent acknowledge)
 async function unsnoozeTask(id, notify = true) {
     try {
-        await patchTask(id, { defer_until: null }, 'Failed to un-snooze task');
+        await postTaskAction(id, 'snooze', { until: null }, 'Failed to un-snooze task');
         await fetchTasks();
         if (notify) showToast('Task returned to backlog.');
     } catch (err) {
@@ -679,7 +685,7 @@ async function unsnoozeTask(id, notify = true) {
 
 async function waitTask(task) {
     try {
-        await patchTask(task.id, { waiting: true }, 'Failed to move task to Waiting');
+        await postTaskAction(task.id, 'wait', { waiting: true }, 'Failed to move task to Waiting');
         await fetchTasks();
         showToast('Moved to Waiting.');
     } catch (err) {
@@ -689,7 +695,7 @@ async function waitTask(task) {
 
 async function unwaitTask(id) {
     try {
-        await patchTask(id, { waiting: false }, 'Failed to remove task from Waiting');
+        await postTaskAction(id, 'wait', { waiting: false }, 'Failed to remove task from Waiting');
         await fetchTasks();
         showToast('Task returned to backlog.');
     } catch (err) {
@@ -1165,7 +1171,7 @@ taskForm.addEventListener('submit', async (e) => {
     try {
         if (id) {
             // Edit API call
-            await patchTask(id, { title, description, due_date: dueDate }, 'Failed to update task');
+            await editTaskContent(id, { title, description, due_date: dueDate }, 'Failed to update task');
             showToast('Task updated.');
         } else {
             // Create API call
@@ -1692,7 +1698,7 @@ function renderArchivedTasks(archivedTasks, append = false) {
 
 async function restoreArchivedTask(id) {
     try {
-        await patchTask(id, { completed: false }, 'Failed to reopen task');
+        await postTaskAction(id, 'complete', { completed: false }, 'Failed to reopen task');
 
         showToast('Task reopened.');
         await fetchTasks();
@@ -1785,7 +1791,7 @@ function renderDeletedTasks(deletedTasks, append = false) {
 
 async function restoreDeletedTask(id) {
     try {
-        await patchTask(id, { deleted: false }, 'Failed to restore task');
+        await postTaskAction(id, 'restore', undefined, 'Failed to restore task');
 
         showToast('Task restored to workspace.');
         await fetchTasks();

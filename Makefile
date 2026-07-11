@@ -1,17 +1,17 @@
-.PHONY: bump-version icon test test-py test-js
+.PHONY: bump-version icon test test-rs test-js release
 
-# Python interpreter with the app's dependencies (override e.g.
-# `make test PYTHON=python3` if you run pytest from an active venv).
-PYTHON ?= venv/bin/python
+# Run the whole test suite: backend (cargo) + frontend (node --test).
+test: test-rs test-js
 
-# Run the whole test suite: backend (pytest) + frontend (node --test).
-test: test-py test-js
-
-test-py:
-	$(PYTHON) -m pytest
+test-rs:
+	cargo test
 
 test-js:
 	npm test
+
+# Self-contained Horizon.exe (static assets embedded) at target/release/.
+release:
+	cargo build --release
 
 bump-version:
 	python3 scripts/bump_version.py
