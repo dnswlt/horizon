@@ -40,9 +40,28 @@ pub fn run(url: String) -> ! {
 
     apply_dark_titlebar(&window);
 
+    let origin = url.clone();
     let webview = WebViewBuilder::new()
         .with_url(&url)
         .with_initialization_script(RELOAD_JS)
+        // target=_blank links (e.g. the description's link chips) ask for a
+        // new window; there is no second webview window, so hand them to the
+        // default browser instead — matching what browser mode does.
+        .with_new_window_req_handler(|new_url, _features| {
+            open_in_browser(&new_url);
+            wry::NewWindowResponse::Deny
+        })
+        // Keep the webview itself on the local app origin; any other
+        // navigation goes to the browser too, so the app UI can never be
+        // navigated away.
+        .with_navigation_handler(move |target| {
+            if target == origin || target.starts_with(&format!("{origin}/")) {
+                true
+            } else {
+                open_in_browser(&target);
+                false
+            }
+        })
         .build(&window)
         .expect("failed to create the WebView2 webview (is the WebView2 runtime installed?)");
 
@@ -92,6 +111,41 @@ fn apply_dark_titlebar(window: &Window) {
 
 #[cfg(not(windows))]
 fn apply_dark_titlebar(_window: &Window) {}
+
+/// Open a link in the user's default browser. Only http(s) is allowed:
+/// content in the webview is user-authored, but ShellExecute on an arbitrary
+/// scheme could launch arbitrary protocol handlers, so everything else is
+/// dropped. (The frontend already restricts link chips to http(s) — this is
+/// the same boundary enforced on the shell side.)
+fn open_in_browser(url: &str) {
+    if !(url.starts_with("https://") || url.starts_with("http://")) {
+        log::warn!("blocked external navigation to non-http URL: {url}");
+        return;
+    }
+    open_in_browser_impl(url);
+}
+
+#[cfg(windows)]
+fn open_in_browser_impl(url: &str) {
+    use windows::Win32::UI::Shell::ShellExecuteW;
+    use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+    use windows::core::{HSTRING, w};
+
+    // Per the ShellExecute contract, a return value <= 32 is an error.
+    let result = unsafe {
+        ShellExecuteW(None, w!("open"), &HSTRING::from(url), None, None, SW_SHOWNORMAL)
+    };
+    if result.0 as isize <= 32 {
+        log::warn!("failed to open {url} in the default browser");
+    }
+}
+
+#[cfg(not(windows))]
+fn open_in_browser_impl(url: &str) {
+    if let Err(e) = std::process::Command::new("xdg-open").arg(url).spawn() {
+        log::warn!("failed to open {url} in the default browser: {e}");
+    }
+}
 
 /// The window's title-bar icon. The exe icon embedded by build.rs only
 /// covers Explorer and the taskbar; the window itself must be given an icon
