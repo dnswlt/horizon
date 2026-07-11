@@ -12,6 +12,9 @@ SQLite file created next to the exe. Open PowerShell in that folder and run:
 
 ```powershell
 Invoke-WebRequest https://github.com/dnswlt/horizon/releases/latest/download/Horizon.exe -OutFile Horizon.exe
+```
+
+```powershell
 .\Horizon.exe
 ```
 
