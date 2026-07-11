@@ -29,11 +29,17 @@ jobs:
       - name: Build Horizon.exe
         run: cargo build --release
 
-      - name: Stage release asset
+      - name: Stage versioned release asset
         run: Copy-Item target/release/Horizon.exe "Horizon-${{ github.ref_name }}.exe"
 
+      # Two names for the same file: the versioned one for the release
+      # archive, and a stable "Horizon.exe" so that
+      #   .../releases/latest/download/Horizon.exe
+      # is a permanent URL for scripted installs (see README).
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          files: Horizon-${{ github.ref_name }}.exe
+          files: |
+            Horizon-${{ github.ref_name }}.exe
+            target/release/Horizon.exe
           generate_release_notes: true

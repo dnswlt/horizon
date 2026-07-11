@@ -6,20 +6,29 @@ everything undated.
 
 ## Windows: double-click app
 
-Grab `Horizon-<version>.exe` from the
-[Releases page](https://github.com/dnswlt/horizon/releases) — one
-self-contained file, nothing else to install. Put it in its own folder
-(your tasks are stored in a `tasks.db` SQLite file created next to the exe)
-and run it. The app opens in its own window with its own taskbar icon (a
-native window via Edge WebView2, which ships with Windows 10/11).
+Horizon is one self-contained exe, nothing else to install. Pick a folder
+for it — that folder is also where your tasks will live, in a `tasks.db`
+SQLite file created next to the exe. Open PowerShell in that folder and run:
+
+```powershell
+Invoke-WebRequest https://github.com/dnswlt/horizon/releases/latest/download/Horizon.exe -OutFile Horizon.exe
+.\Horizon.exe
+```
+
+Then pin it to the taskbar.
+
+Why PowerShell and not the browser? Managed (corporate) environments often
+block unsigned exe downloads in the browser, or show a SmartScreen warning
+on first launch (**More info → Run anyway**) — the PowerShell route avoids
+both. If your environment doesn't mind, downloading `Horizon-<version>.exe`
+from the [Releases page](https://github.com/dnswlt/horizon/releases) works
+just as well.
 
 Notes:
 
-- First launch may show a SmartScreen warning (unsigned app) → **More info →
-  Run anyway**.
-- Updating is replacing the exe; `tasks.db` stays where it is. Databases
-  created by older (Python-based) versions are upgraded automatically on
-  first launch.
+- Updating is re-running the download command in the same folder (or
+  replacing the exe); `tasks.db` stays where it is. Databases created by
+  older (Python-based) versions are upgraded automatically on first launch.
 
 ## Browser mode
 
