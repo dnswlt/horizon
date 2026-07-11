@@ -34,6 +34,7 @@ pub fn run(url: String) -> ! {
     let window = WindowBuilder::new()
         .with_title("Horizon")
         .with_inner_size(LogicalSize::new(1200.0, 800.0))
+        .with_window_icon(app_icon())
         .build(&event_loop)
         .expect("failed to create the app window");
 
@@ -91,3 +92,18 @@ fn apply_dark_titlebar(window: &Window) {
 
 #[cfg(not(windows))]
 fn apply_dark_titlebar(_window: &Window) {}
+
+/// The window's title-bar icon. The exe icon embedded by build.rs only
+/// covers Explorer and the taskbar; the window itself must be given an icon
+/// explicitly, so load it back out of the exe's resources (winresource
+/// stores the icon under resource ID 1).
+#[cfg(windows)]
+fn app_icon() -> Option<tao::window::Icon> {
+    use tao::platform::windows::IconExtWindows;
+    tao::window::Icon::from_resource(1, None).ok()
+}
+
+#[cfg(not(windows))]
+fn app_icon() -> Option<tao::window::Icon> {
+    None
+}
