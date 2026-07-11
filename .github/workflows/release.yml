@@ -1,7 +1,7 @@
 name: Release Windows build
 
-# Builds the Horizon app folder on a Windows runner and publishes it, zipped,
-# as a GitHub Release asset whenever a version tag (e.g. v1.2.0) is pushed.
+# Builds the single-file Horizon.exe on a Windows runner and publishes it as
+# a GitHub Release asset whenever a version tag (e.g. v1.2.0) is pushed.
 on:
   push:
     tags:
@@ -16,24 +16,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
+      - uses: dtolnay/rust-toolchain@stable
 
-      - name: Install dependencies
-        run: python -m pip install -r requirements.txt pyinstaller pywebview
+      - uses: Swatinem/rust-cache@v2
 
-      # Keep this command in sync with the PyInstaller invocation in build.bat.
-      - name: Build Horizon app folder
-        run: >
-          python -m PyInstaller --noconfirm --windowed --name Horizon
-          --icon "static\favicon.ico" --add-data "static;static" run.py
+      - name: Run tests
+        run: cargo test --release
 
-      - name: Zip app folder
-        run: Compress-Archive -Path dist/Horizon -DestinationPath "dist/Horizon-${{ github.ref_name }}-windows.zip"
+      # .cargo/config.toml statically links the MSVC C runtime, so the exe
+      # has no VC++ Redistributable dependency; static/ is embedded by
+      # rust-embed in release builds. The result is one self-contained file.
+      - name: Build Horizon.exe
+        run: cargo build --release
+
+      - name: Stage release asset
+        run: Copy-Item target/release/Horizon.exe "Horizon-${{ github.ref_name }}.exe"
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/Horizon-${{ github.ref_name }}-windows.zip
+          files: Horizon-${{ github.ref_name }}.exe
           generate_release_notes: true

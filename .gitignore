@@ -1,13 +1,10 @@
-venv/
-.venv/
 tasks.db
 horizon.log
-__pycache__/
 .vscode
 .DS_Store
 *.exe
 *~
 .env
-build/
-dist/
-*.spec
+/target
+/build
+/dist
