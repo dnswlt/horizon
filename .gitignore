@@ -8,3 +8,5 @@ horizon.log
 /target
 /build
 /dist
+__pycache__/
+venv/
