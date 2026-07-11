@@ -178,6 +178,40 @@ export function formatWaitingSince(ts, now = Date.now()) {
     return then.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
+// Bucket a completed_at timestamp for the archive's day-grouped list: one
+// bucket per local day for the last 7 days, one per month before that.
+// Returns { key, label } where key is 'YYYY-MM-DD' (recent) or 'YYYY-MM'
+// (older) and label is what the group header shows ("Today", "Yesterday",
+// "Monday, Jul 7", "June 2026"). `today` is injectable for testing.
+// Returns null for empty/unparseable input.
+export function archiveBucket(ts, today = getLocalDateString()) {
+    if (!ts) return null;
+    let dateStr = ts;
+    if (!dateStr.includes('T')) {
+        dateStr = dateStr.replace(' ', 'T') + 'Z';
+    }
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return null;
+
+    const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const dayDate = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const [ty, tm, td] = today.split('-').map(Number);
+    const daysAgo = Math.round((new Date(ty, tm - 1, td) - dayDate) / 86400000);
+
+    if (daysAgo <= 0) return { key: day, label: 'Today' };
+    if (daysAgo === 1) return { key: day, label: 'Yesterday' };
+    if (daysAgo < 7) {
+        return {
+            key: day,
+            label: dayDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }),
+        };
+    }
+    return {
+        key: day.slice(0, 7),
+        label: dayDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+    };
+}
+
 // ===== Context grouping (Contexts tab) =====
 
 // Distinct @context tokens mentioned in a task's title or description,

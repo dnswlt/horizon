@@ -4,13 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Horizon</title>
-    <link rel="icon" type="image/png" href="/static/favicon.png?v=49">
-    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v=49">
-    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=49">
+    <link rel="icon" type="image/png" href="/static/favicon.png?v=50">
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v=50">
+    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=50">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css?v=49">
+    <link rel="stylesheet" href="/static/style.css?v=50">
 </head>
 <body>
     <!-- App Container -->
@@ -28,7 +28,7 @@
                     </svg>
                 </div>
                 <div class="logo-text">
-                    <h1>Horizon</h1>
+                    <h1 id="header-title">Horizon</h1>
                 </div>
             </div>
             
@@ -199,9 +199,7 @@
 
             <div id="view-archive" class="tab-view">
                 <section class="archive-section">
-                    <div class="section-title">
-                        <h2>Archive</h2>
-                    </div>
+                    <p id="archive-summary" class="archive-intro" style="display: none;"></p>
                     <div class="archive-list-container">
                         <div id="archive-empty-msg" class="archive-empty">
                             <svg viewBox="0 0 24 24" width="48" height="48" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
@@ -254,10 +252,6 @@
             <!-- Contexts View: every open task grouped by @context tag -->
             <div id="view-contexts" class="tab-view">
                 <section class="contexts-section">
-                    <div class="section-title">
-                        <h2>Contexts</h2>
-                        <p class="settings-hint">Every open task on your plate, grouped by <code>@context</code>.</p>
-                    </div>
                     <div id="contexts-empty-msg" class="archive-empty">
                         <svg viewBox="0 0 24 24" width="48" height="48" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
                             <circle cx="6" cy="6" r="3"></circle>
@@ -334,7 +328,7 @@
                     <div class="form-group">
                         <div class="label-row">
                             <label for="task-description">Description</label>
-                            <span class="hint-icon" tabindex="-1" role="button" aria-label="How links work">
+                            <span class="hint-icon" tabindex="-1" role="button" aria-label="Description tips">
                                 <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
                                     <circle cx="12" cy="12" r="10"></circle>
                                     <line x1="12" y1="16" x2="12" y2="12"></line>
@@ -344,6 +338,7 @@
                                     Any URL becomes a clickable chip. To name one, put a
                                     label before it on its own line:
                                     <span class="hint-example">Design doc | https://example.com/spec</span>
+                                    <br>Hit Ctrl+Enter to save the task.
                                 </span>
                             </span>
                         </div>
@@ -407,6 +402,6 @@
     <!-- Toast Notifications -->
     <div id="toast-container"></div>
 
-    <script type="module" src="/static/app.js?v=49"></script>
+    <script type="module" src="/static/app.js?v=50"></script>
 </body>
 </html>

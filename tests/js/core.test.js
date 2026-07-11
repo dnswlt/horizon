@@ -15,6 +15,7 @@ import {
     formatTimestamp,
     formatDoneDate,
     formatWaitingSince,
+    archiveBucket,
 } from '../../static/core.js';
 
 test('escapeHTML escapes the five HTML-significant characters', () => {
@@ -249,4 +250,40 @@ test('formatWaitingSince returns empty string for empty/unparseable input', () =
     assert.equal(formatWaitingSince(''), '');
     assert.equal(formatWaitingSince(null), '');
     assert.equal(formatWaitingSince('nope'), '');
+});
+
+test('archiveBucket buckets the last 7 days per day, older per month', () => {
+    // Anchor everything to the machine's local "now" so the assertions are
+    // timezone-independent (archiveBucket converts UTC timestamps to local days).
+    const localDay = (d) =>
+        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const now = new Date();
+    const today = localDay(now);
+    const daysAgo = (n) => new Date(now.getTime() - n * 86400000);
+
+    assert.deepEqual(archiveBucket(now.toISOString(), today), { key: today, label: 'Today' });
+    assert.deepEqual(archiveBucket(daysAgo(1).toISOString(), today), {
+        key: localDay(daysAgo(1)),
+        label: 'Yesterday',
+    });
+
+    // 2–6 days ago: own day bucket, labelled with the weekday
+    const d3 = archiveBucket(daysAgo(3).toISOString(), today);
+    assert.equal(d3.key, localDay(daysAgo(3)));
+    assert.match(d3.label, /^[A-Z][a-z]+day, [A-Z][a-z]{2} \d{1,2}$/);
+
+    // Older than a week: month bucket
+    const d30 = archiveBucket(daysAgo(30).toISOString(), today);
+    assert.equal(d30.key, localDay(daysAgo(30)).slice(0, 7));
+    assert.match(d30.label, /^[A-Z][a-z]+ \d{4}$/);
+
+    // SQLite zoneless timestamps are normalised like formatTimestamp
+    const sqliteNow = now.toISOString().slice(0, 19).replace('T', ' ');
+    assert.equal(archiveBucket(sqliteNow, today).label, 'Today');
+});
+
+test('archiveBucket returns null for empty/unparseable input', () => {
+    assert.equal(archiveBucket(''), null);
+    assert.equal(archiveBucket(null), null);
+    assert.equal(archiveBucket('nope'), null);
 });
