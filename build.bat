@@ -9,6 +9,8 @@ python -m pip install -r requirements.txt pyinstaller pywebview || goto :error
 
 REM --windowed suppresses the console window so it's a clean GUI app.
 REM Invoke via `python -m` so it works even when the Scripts dir isn't on PATH.
+REM Keep this command in sync with the build step in
+REM .github/workflows/release.yml, which runs the same build on tagged pushes.
 python -m PyInstaller --onefile --windowed --name Horizon --icon "static\favicon.ico" --add-data "static;static" run.py || goto :error
 
 echo.

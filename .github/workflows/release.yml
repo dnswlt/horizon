@@ -1,0 +1,36 @@
+name: Release Windows build
+
+# Builds Horizon.exe on a Windows runner and publishes it as a GitHub Release
+# asset whenever a version tag (e.g. v1.2.0) is pushed.
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt pyinstaller pywebview
+
+      # Keep this command in sync with the PyInstaller invocation in build.bat.
+      - name: Build Horizon.exe
+        run: >
+          python -m PyInstaller --onefile --windowed --name Horizon
+          --icon "static\favicon.ico" --add-data "static;static" run.py
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/Horizon.exe
+          generate_release_notes: true

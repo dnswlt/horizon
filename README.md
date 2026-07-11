@@ -18,25 +18,32 @@ python3 -m venv venv
 Then open <http://127.0.0.1:8063>. Tasks are stored in a local `tasks.db`
 SQLite file, created automatically on first run.
 
-## Windows: build a double-click app
+## Windows: double-click app
 
-Produces a single `Horizon.exe`. The end user needs nothing installed — they
-double-click it and the app opens in its own window, with its own taskbar
-icon (a native window via Edge WebView2, which ships with Windows 10/11).
+Grab the latest `Horizon.exe` from the
+[Releases page](https://github.com/dnswlt/horizon/releases) — nothing else to
+install. Double-click it and the app opens in its own window, with its own
+taskbar icon (a native window via Edge WebView2, which ships with Windows
+10/11).
 
-To build, you need [Python](https://www.python.org/downloads/) (tick "Add to
-PATH" when installing). PyInstaller is pulled in automatically by the script:
+Notes:
+
+- First launch shows a SmartScreen warning (unsigned app) → **More info → Run
+  anyway**.
+- `tasks.db` is created next to the exe, so put it somewhere writable (not
+  `Program Files`). Updates are just a new exe; data is preserved.
+
+### Building it yourself
+
+Releases are built automatically by
+[.github/workflows/release.yml](.github/workflows/release.yml) whenever a
+`v*.*.*` tag is pushed — most people won't need to build locally. If you do
+(e.g. to test a change before tagging a release), you need
+[Python](https://www.python.org/downloads/) (tick "Add to PATH" when
+installing). PyInstaller is pulled in automatically by the script:
 
 ```bat
 build.bat
 ```
 
-The app lands at `dist\Horizon.exe` — upload it to a GitHub Release so users
-can download it directly.
-
-Notes:
-
-- First launch shows a SmartScreen warning (unsigned app) → **More info → Run
-  anyway**. Signing it away costs money; skip it for internal use.
-- `tasks.db` is created next to the exe, so put it somewhere writable (not
-  `Program Files`). Updates are just a new exe; data is preserved.
+The app lands at `dist\Horizon.exe`.
