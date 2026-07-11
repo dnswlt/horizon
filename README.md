@@ -20,9 +20,9 @@ Then pin it to the taskbar.
 Why PowerShell and not the browser? Managed (corporate) environments often
 block unsigned exe downloads in the browser, or show a SmartScreen warning
 on first launch (**More info → Run anyway**) — the PowerShell route avoids
-both. If your environment doesn't mind, downloading `Horizon-<version>.exe`
-from the [Releases page](https://github.com/dnswlt/horizon/releases) works
-just as well.
+both. If your environment doesn't mind, downloading `Horizon.exe` from the
+[Releases page](https://github.com/dnswlt/horizon/releases) works just as
+well.
 
 Notes:
 
