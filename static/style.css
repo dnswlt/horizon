@@ -1166,6 +1166,21 @@ textarea {
     gap: 0.75rem;
 }
 
+/* Day/month group headers in the archive list ("Today", "June 2026");
+   coloured like the planner's day column headers (.column-day) */
+.archive-day-header {
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-primary);
+    margin-top: 0.75rem;
+}
+
+.archive-day-header:first-child {
+    margin-top: 0;
+}
+
 .archive-item {
     background: rgba(30, 41, 59, 0.2);
     border: 1px solid var(--border-color);

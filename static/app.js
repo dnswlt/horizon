@@ -9,11 +9,12 @@ import {
     formatTimestamp,
     formatDoneDate,
     formatWaitingSince,
+    archiveBucket,
     parseSearchQuery,
     extractContexts,
     groupByContext,
     deriveTaskState,
-} from './core.js?v=49';
+} from './core.js?v=50';
 
 // App State
 let tasks = [];
@@ -21,6 +22,7 @@ let workdays = [];
 let showCompleted = localStorage.getItem('showCompleted') === 'true';
 
 // DOM Elements
+const headerTitle = document.getElementById('header-title');
 const weekColumnsContainer = document.getElementById('week-columns');
 const backlogTasksContainer = document.getElementById('backlog-tasks-container');
 const backlogDropzone = document.getElementById('backlog-dropzone');
@@ -61,6 +63,7 @@ const viewPlanner = document.getElementById('view-planner');
 const viewArchive = document.getElementById('view-archive');
 const archiveItemsContainer = document.getElementById('archive-items-container');
 const archiveEmptyMsg = document.getElementById('archive-empty-msg');
+const archiveSummary = document.getElementById('archive-summary');
 const deletedItemsContainer = document.getElementById('deleted-items-container');
 const deletedEmptyMsg = document.getElementById('deleted-empty-msg');
 const deletedSection = document.querySelector('.deleted-section');
@@ -84,6 +87,9 @@ const searchEmptyMsg = document.getElementById('search-empty-msg');
 
 // Pagination state
 let archiveOffset = 0;
+// Bucket key of the last archive group header rendered, so "Load More" pages
+// continue an open group instead of repeating its header.
+let archiveLastBucketKey = null;
 let deletedOffset = 0;
 const PAGE_SIZE = 50;
 
@@ -1266,8 +1272,22 @@ function setupEventListeners() {
     // Live-update the clickable links strip as the description changes
     taskDescInput.addEventListener('input', renderDescLinks);
 
+    // Ctrl/Cmd+Enter submits the task form from within the description textarea
+    taskDescInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+            e.preventDefault();
+            taskForm.requestSubmit();
+        }
+    });
+
     // Task updates: post, plus delegated edit/delete on the timeline
     postUpdateBtn.addEventListener('click', postUpdate);
+    newUpdateInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+            e.preventDefault();
+            postUpdate();
+        }
+    });
     updatesTimeline.addEventListener('click', (e) => {
         const btn = e.target.closest('button[data-act]');
         if (!btn) return;
@@ -1429,6 +1449,11 @@ async function switchTab(tabId) {
         views[id].classList.toggle('active', id === tabId);
     });
 
+    // The header title doubles as the current view's heading; the views
+    // themselves carry no <h2>. The active tab's own label is the source of
+    // truth (the planner tab is labelled "Horizon").
+    headerTitle.textContent = tabs[tabId].textContent.trim();
+
     if (tabId === 'archive') {
         await fetchArchivedTasks(true);
         await fetchDeletedTasks(true);
@@ -1448,6 +1473,7 @@ async function fetchArchivedTasks(replace = false) {
         }
         const data = await apiFetch(`/api/tasks/archive?limit=${PAGE_SIZE}&offset=${archiveOffset}`, { errorMessage: 'Failed to load archive' });
 
+        if (replace) renderArchiveSummary(data.tasks, data.has_more);
         renderArchivedTasks(data.tasks, !replace);
         
         const loadMoreContainer = document.getElementById('archive-load-more-container');
@@ -1625,17 +1651,54 @@ function renderSearchResults(results) {
     });
 }
 
+// One quiet line above the archive list: "12 tasks completed in the last
+// 7 days · 3 today". Computed from the first page of results (sorted by
+// completed_at desc); if the whole page is within the week and more pages
+// exist, the count is shown as "50+". Hidden when the week was quiet.
+function renderArchiveSummary(archivedTasks, hasMore) {
+    const today = getLocalDateString();
+    let weekCount = 0;
+    let todayCount = 0;
+    archivedTasks.forEach(task => {
+        const bucket = archiveBucket(task.completed_at, today);
+        if (!bucket || bucket.key.length !== 10) return; // month bucket = older than 7 days
+        weekCount++;
+        if (bucket.key === today) todayCount++;
+    });
+
+    if (weekCount === 0) {
+        archiveSummary.style.display = 'none';
+        return;
+    }
+    const plus = hasMore && weekCount === archivedTasks.length ? '+' : '';
+    let text = `${weekCount}${plus} task${weekCount === 1 ? '' : 's'} completed in the last 7 days`;
+    if (todayCount > 0) text += ` · ${todayCount} today`;
+    archiveSummary.textContent = text;
+    archiveSummary.style.display = '';
+}
+
 function renderArchivedTasks(archivedTasks, append = false) {
     if (!append) {
         archiveItemsContainer.innerHTML = '';
+        archiveLastBucketKey = null;
     }
     if (archivedTasks.length === 0 && !append) {
         archiveEmptyMsg.style.display = 'flex';
         return;
     }
     archiveEmptyMsg.style.display = 'none';
-    
+
     archivedTasks.forEach(task => {
+        // Day/month group header (tasks arrive sorted by completed_at desc)
+        const bucket = archiveBucket(task.completed_at);
+        if (bucket && bucket.key !== archiveLastBucketKey) {
+            const header = document.createElement('div');
+            header.className = 'archive-day-header';
+            header.textContent = bucket.label;
+            archiveItemsContainer.appendChild(header);
+            archiveLastBucketKey = bucket.key;
+        }
+
         const item = document.createElement('div');
         const itemColor = deriveColor(task);
         item.className = `archive-item ${itemColor ? 'color-' + itemColor : ''}`;
