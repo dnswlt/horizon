@@ -1,7 +1,7 @@
 name: Release Windows build
 
-# Builds Horizon.exe on a Windows runner and publishes it as a GitHub Release
-# asset whenever a version tag (e.g. v1.2.0) is pushed.
+# Builds the Horizon app folder on a Windows runner and publishes it, zipped,
+# as a GitHub Release asset whenever a version tag (e.g. v1.2.0) is pushed.
 on:
   push:
     tags:
@@ -24,13 +24,16 @@ jobs:
         run: python -m pip install -r requirements.txt pyinstaller pywebview
 
       # Keep this command in sync with the PyInstaller invocation in build.bat.
-      - name: Build Horizon.exe
+      - name: Build Horizon app folder
         run: >
-          python -m PyInstaller --onefile --windowed --name Horizon
+          python -m PyInstaller --noconfirm --windowed --name Horizon
           --icon "static\favicon.ico" --add-data "static;static" run.py
+
+      - name: Zip app folder
+        run: Compress-Archive -Path dist/Horizon -DestinationPath "dist/Horizon-${{ github.ref_name }}-windows.zip"
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/Horizon.exe
+          files: dist/Horizon-${{ github.ref_name }}-windows.zip
           generate_release_notes: true

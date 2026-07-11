@@ -20,18 +20,20 @@ SQLite file, created automatically on first run.
 
 ## Windows: double-click app
 
-Grab the latest `Horizon.exe` from the
-[Releases page](https://github.com/dnswlt/horizon/releases) — nothing else to
-install. Double-click it and the app opens in its own window, with its own
+Grab the `Horizon-<version>-windows.zip` asset from the
+[Releases page](https://github.com/dnswlt/horizon/releases), unzip it
+anywhere writable, and run `Horizon.exe` from inside the extracted folder —
+nothing else to install. The app opens in its own window, with its own
 taskbar icon (a native window via Edge WebView2, which ships with Windows
 10/11).
 
 Notes:
 
-- First launch shows a SmartScreen warning (unsigned app) → **More info → Run
-  anyway**.
-- `tasks.db` is created next to the exe, so put it somewhere writable (not
-  `Program Files`). Updates are just a new exe; data is preserved.
+- First launch may show a SmartScreen warning (unsigned app) → **More info →
+  Run anyway**.
+- `tasks.db` is created next to `Horizon.exe`, inside the unzipped folder.
+  Updates are just a new zip; keep `tasks.db` (copy it into the new folder)
+  to preserve your data.
 
 ### Building it yourself
 
@@ -46,4 +48,4 @@ installing). PyInstaller is pulled in automatically by the script:
 build.bat
 ```
 
-The app lands at `dist\Horizon.exe`.
+The app lands at `dist\Horizon\Horizon.exe`.
