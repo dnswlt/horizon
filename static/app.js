@@ -15,7 +15,7 @@ import {
     extractContexts,
     groupByContext,
     deriveTaskState,
-} from './core.js?v=50';
+} from './core.js?v=52';
 
 // App State
 let tasks = [];
@@ -172,8 +172,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
     fetchContexts();
     fetchTasks();
+    fetchVersion();
     setupEventListeners();
 });
+
+// Show the build (version + commit) at the bottom of the hamburger menu, so
+// a user can tell us exactly which build they're running.
+async function fetchVersion() {
+    try {
+        const v = await apiFetch('/api/version');
+        document.getElementById('app-version').textContent = `v${v.version} · ${v.commit}`;
+    } catch (err) {
+        // Purely informational; leave the footer empty on failure.
+        console.error(err);
+    }
+}
 
 // Load context configuration from the server and reflect it in the UI
 async function fetchContexts() {

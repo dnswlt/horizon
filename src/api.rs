@@ -68,6 +68,7 @@ pub fn router(db_conn: Connection) -> Router {
     Router::new()
         .route("/", get(static_files::index))
         .route("/static/{*path}", get(static_files::asset))
+        .route("/api/version", get(get_version))
         .route("/api/settings/contexts", get(get_contexts).put(update_contexts))
         .route("/api/tasks", get(get_board_tasks).post(create_task))
         .route("/api/tasks/open", get(get_open_tasks))
@@ -130,6 +131,17 @@ fn is_iso_date(s: &str) -> bool {
         && s.bytes()
             .enumerate()
             .all(|(i, b)| if i == 4 || i == 7 { b == b'-' } else { b.is_ascii_digit() })
+}
+
+// ===== Version =====
+
+/// Cargo version plus the git commit the binary was built from (see build.rs),
+/// so a bug report can name the exact build.
+async fn get_version() -> Json<Value> {
+    Json(json!({
+        "version": env!("CARGO_PKG_VERSION"),
+        "commit": env!("HORIZON_GIT_HASH"),
+    }))
 }
 
 // ===== Settings =====

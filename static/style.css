@@ -1529,6 +1529,17 @@ textarea {
     color: var(--text-secondary);
 }
 
+/* Build info in the hamburger menu: overlaid on the dropdown's bottom padding
+   band, so it occupies no layout space and stays out of the flex flow. */
+.settings-version {
+    position: absolute;
+    right: 0.75rem;
+    bottom: 0.25rem;
+    font-size: 0.68rem;
+    color: var(--text-muted);
+    user-select: text; /* let users copy it into a bug report */
+}
+
 .color-label-row {
     display: flex;
     align-items: center;
