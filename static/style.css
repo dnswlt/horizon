@@ -18,6 +18,8 @@
     --success-bg: rgba(16, 185, 129, 0.1);
     --danger: #ef4444;
     --danger-bg: rgba(239, 68, 68, 0.1);
+    --warning: #f59e0b;
+    --warning-bg: rgba(245, 158, 11, 0.1);
     
     /* Card Styles */
     --card-bg: rgba(30, 41, 59, 0.5);
@@ -219,7 +221,8 @@ body {
     display: grid;
     grid-template-columns: repeat(5, 1fr);
     gap: 1.25rem;
-    align-items: start;
+    /* Default align-items (stretch) on purpose: when one day outgrows the
+       baseline min-height, all five lanes grow in lockstep with it. */
 }
 
 @media (max-width: 1024px) {
@@ -249,7 +252,11 @@ body {
     border-radius: var(--radius-lg);
     display: flex;
     flex-direction: column;
-    height: 600px;
+    /* Uniform baseline height (viewport-tracking, so light days keep a tall
+       clean board with big drop targets), but a loaded day GROWS past it —
+       every card stays visible and readable, and an overloaded day visibly
+       towers over its siblings. That's the honest "too much" signal. */
+    min-height: clamp(520px, 78vh, 760px);
     transition: border-color var(--transition-fast), background var(--transition-fast);
 }
 
@@ -295,10 +302,24 @@ body {
     border: 1px solid var(--border-color);
 }
 
-/* Column Cards List */
+/* Soft WIP limits: amber when the day is getting full, red when overloaded */
+.column-task-count.busy {
+    background: var(--warning-bg);
+    border-color: var(--warning);
+    color: var(--warning);
+    font-weight: 600;
+}
+.column-task-count.overloaded {
+    background: var(--danger-bg);
+    border-color: var(--danger);
+    color: var(--danger);
+    font-weight: 600;
+}
+
+/* Column Cards List — no inner scrolling: the lane grows with its content,
+   so every card on a day's plate is always visible. */
 .column-cards {
     flex-grow: 1;
-    overflow-y: auto;
     padding: 1rem;
     display: flex;
     flex-direction: column;
@@ -364,6 +385,9 @@ body {
     border: var(--card-border);
     border-radius: var(--radius-md);
     padding: 1rem;
+    /* Don't let a full lane squash cards (overflow:hidden would allow
+       shrinking below the text height); overflow scrolls instead. */
+    flex-shrink: 0;
     cursor: grab;
     user-select: none;
     box-shadow: var(--card-shadow);

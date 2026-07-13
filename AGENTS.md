@@ -32,6 +32,11 @@ like Jira and Trello tiring to use.
   clicks.
 - **Nothing is truly lost.** Completing archives; deleting is a soft delete
   (Trash). Both are recoverable. Prefer reversible actions.
+- **Clean, professional UI and excellent UX reign supreme.** Don't descend
+  into fiddle mode: no pixel-shaving, no piling up density/spacing micro-tweaks,
+  no cleverness that trades polish for cramming. When something feels off,
+  find the one principled fix (or leave it alone) rather than iterating on
+  cosmetic knobs.
 
 ## Stack & layout
 

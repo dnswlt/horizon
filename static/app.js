@@ -15,7 +15,7 @@ import {
     extractContexts,
     groupByContext,
     deriveTaskState,
-} from './core.js?v=52';
+} from './core.js?v=54';
 
 // App State
 let tasks = [];
@@ -93,6 +93,12 @@ let archiveOffset = 0;
 let archiveLastBucketKey = null;
 let deletedOffset = 0;
 const PAGE_SIZE = 50;
+
+// Soft WIP limits: a day with more open tasks than these gets its count badge
+// tinted — amber past the first, red past the second (the board never hides
+// cards; this is purely a "you're taking on a lot" signal).
+const DAY_LOAD_WARN = 5;
+const DAY_LOAD_HIGH = 7;
 
 // Search state
 let searchIncludeDone = true;
@@ -345,7 +351,12 @@ function renderTasks() {
         const countBadge = document.getElementById(`count-${day.dateString}`);
         
         countBadge.textContent = list.length;
-        
+        // Overload is about what's still on the plate, so completed tasks
+        // (shown or not) don't count against the limit.
+        const openCount = list.filter(t => !t.completed).length;
+        countBadge.classList.toggle('overloaded', openCount > DAY_LOAD_HIGH);
+        countBadge.classList.toggle('busy', openCount > DAY_LOAD_WARN && openCount <= DAY_LOAD_HIGH);
+
         list.sort((a, b) => a.position - b.position);
         list.forEach(task => {
             container.appendChild(createCardElement(task));
