@@ -1211,11 +1211,26 @@ taskForm.addEventListener('submit', async (e) => {
 const SHORTCUTS = {
     'n': { label: 'New task',            run: () => openModal() },
     '/': { label: 'Search',              run: () => switchTab('search') },
-    'h': { label: 'Horizon board',       run: () => switchTab('planner') },
+    'h': { label: 'Horizon board',       run: () => scrollToBoard() },
+    'b': { label: 'Backlog',             run: () => scrollToBacklog() },
     'a': { label: 'Archive',             run: () => switchTab('archive') },
     'c': { label: 'Contexts',            run: () => switchTab('contexts') },
     '?': { label: 'Toggle this help',    run: () => toggleShortcutHelp() },
 };
+
+// Switch to the Horizon board and jump back to the top of the page, matching
+// the other tabs (e.g. returning from the Backlog).
+function scrollToBoard() {
+    switchTab('planner');
+    window.scrollTo(0, 0);
+}
+
+// The Backlog lives at the bottom of the Horizon board, so switch to that tab
+// first, then scroll its section into view.
+function scrollToBacklog() {
+    switchTab('planner');
+    document.querySelector('.backlog-section')?.scrollIntoView();
+}
 
 // True when the event originated from a text-entry surface, where single-key
 // shortcuts must yield to normal typing.
