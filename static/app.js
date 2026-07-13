@@ -15,12 +15,16 @@ import {
     extractContexts,
     groupByContext,
     deriveTaskState,
-} from './core.js?v=55';
+} from './core.js?v=56';
+
+// Per-device view state lives in localStorage (see AGENTS.md); all keys use
+// the 'horizon-' prefix.
+const SHOW_COMPLETED_KEY = 'horizon-show-completed';
 
 // App State
 let tasks = [];
 let workdays = [];
-let showCompleted = localStorage.getItem('showCompleted') === 'true';
+let showCompleted = localStorage.getItem(SHOW_COMPLETED_KEY) === 'true';
 
 // DOM Elements
 const headerTitle = document.getElementById('header-title');
@@ -1398,7 +1402,7 @@ function setupEventListeners() {
     // Toggle completed state button click
     toggleCompletedBtn.addEventListener('click', () => {
         showCompleted = !showCompleted;
-        localStorage.setItem('showCompleted', showCompleted);
+        localStorage.setItem(SHOW_COMPLETED_KEY, showCompleted);
         if (showCompleted) {
             toggleCompletedBtn.classList.add('active');
         } else {
