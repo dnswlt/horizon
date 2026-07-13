@@ -117,7 +117,9 @@ date, completing stamps `completed_at`.
 - **Persist preferences server-side, not in `localStorage`.** User settings
   (like context keywords) live in the `settings` table via `/api/settings/*`, so
   they survive across browsers and devices. Don't reach for `localStorage` for
-  anything that should persist.
+  anything that should persist. Exception: *per-device view state* (e.g. the
+  3-5 lane count), where each screen legitimately wants its own value —
+  that's what `localStorage` is for.
 - **Schema changes are versioned migrations.** Bump `SCHEMA_VERSION` in
   `src/db.rs` and add a step to `migrate()`; migrations run in a transaction
   on startup. Version 0 also covers databases created by the retired Python

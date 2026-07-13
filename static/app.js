@@ -15,7 +15,7 @@ import {
     extractContexts,
     groupByContext,
     deriveTaskState,
-} from './core.js?v=54';
+} from './core.js?v=55';
 
 // App State
 let tasks = [];
@@ -166,9 +166,7 @@ const editTaskContent = (id, fields, errorMessage) =>
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
-    calculateWorkdays();
-    renderColumnsStructure();
-    renderQuickDateButtons();
+    applyLaneCount();
     rebuildContextColorMap();
 
     // Set up toggle initial state
@@ -232,13 +230,41 @@ function saveContexts() {
     }, 500);
 }
 
-// Calculate the upcoming 5 work days starting from today
+// How many day lanes the board shows (3-5). Per-device view state, so it
+// lives in localStorage rather than the server-side settings table.
+const LANE_COUNT_KEY = 'horizon-lane-count';
+
+function loadLaneCount() {
+    const n = parseInt(localStorage.getItem(LANE_COUNT_KEY), 10);
+    return n >= 3 && n <= 5 ? n : 5;
+}
+
+let laneCount = loadLaneCount();
+
+// Rebuild the board with n day lanes. Dated tasks beyond the shorter horizon
+// fall back to the Backlog automatically (bucketing re-derives on render).
+function setLaneCount(n) {
+    laneCount = n;
+    localStorage.setItem(LANE_COUNT_KEY, String(n));
+    applyLaneCount();
+    renderTasks();
+}
+
+// Recompute the workday lanes and (re)build the column skeleton for them.
+function applyLaneCount() {
+    weekColumnsContainer.style.setProperty('--lane-count', laneCount);
+    calculateWorkdays();
+    renderColumnsStructure();
+    renderQuickDateButtons();
+}
+
+// Calculate the upcoming `laneCount` work days starting from today
 function calculateWorkdays() {
     workdays = [];
     const today = new Date();
     let current = new Date(today);
 
-    while (workdays.length < 5) {
+    while (workdays.length < laneCount) {
         const dayOfWeek = current.getDay(); // 0 = Sunday, 6 = Saturday
         if (dayOfWeek !== 0 && dayOfWeek !== 6) {
             const year = current.getFullYear();
@@ -1239,6 +1265,11 @@ const SHORTCUTS = {
     '/': { label: 'Search',              run: () => switchTab('search') },
     'h': { label: 'Horizon board',       run: () => scrollToBoard() },
     'b': { label: 'Backlog',             run: () => scrollToBacklog() },
+    // One help row covers all three lane-count keys ('4'/'5' carry no label,
+    // so renderShortcutHelp skips them and '3' documents the group as "3-5").
+    '3': { label: 'Days on the board',   keyLabel: '3-5', run: () => setLaneCount(3) },
+    '4': { run: () => setLaneCount(4) },
+    '5': { run: () => setLaneCount(5) },
     'a': { label: 'Archive',             run: () => switchTab('archive') },
     'c': { label: 'Contexts',            run: () => switchTab('contexts') },
     '?': { label: 'Toggle this help',    run: () => toggleShortcutHelp() },
@@ -1273,12 +1304,14 @@ function toggleShortcutHelp(force) {
 }
 
 function renderShortcutHelp() {
-    shortcutsList.innerHTML = Object.entries(SHORTCUTS).map(([key, { label }]) =>
-        `<div class="shortcut-row">
-            <kbd>${escapeHTML(key)}</kbd>
-            <span>${escapeHTML(label)}</span>
-        </div>`
-    ).join('');
+    shortcutsList.innerHTML = Object.entries(SHORTCUTS)
+        .filter(([, { label }]) => label) // unlabelled keys ride on another row
+        .map(([key, { label, keyLabel }]) =>
+            `<div class="shortcut-row">
+                <kbd>${escapeHTML(keyLabel || key)}</kbd>
+                <span>${escapeHTML(label)}</span>
+            </div>`
+        ).join('');
 }
 
 // Setup event listeners

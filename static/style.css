@@ -219,7 +219,8 @@ body {
 /* Weekly Planner Grid */
 .columns-grid {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    /* --lane-count is set from JS (3-5 day horizon, "3"/"4"/"5" shortcuts) */
+    grid-template-columns: repeat(var(--lane-count, 5), 1fr);
     gap: 1.25rem;
     /* Default align-items (stretch) on purpose: when one day outgrows the
        baseline min-height, all five lanes grow in lockstep with it. */
