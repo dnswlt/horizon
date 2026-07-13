@@ -722,6 +722,14 @@ body {
     color: var(--text-secondary);
     font-style: italic;
 }
+.update-entry .update-body a {
+    color: var(--primary);
+    text-decoration: underline;
+    word-break: break-all;
+}
+.update-entry .update-body a:hover {
+    color: var(--primary-hover);
+}
 .update-edit-box {
     width: 100%;
     min-height: 60px;

@@ -7,6 +7,7 @@ import {
     extractLinks,
     extractDescLinks,
     formatLinkLabel,
+    linkifyHTML,
     extractContexts,
     groupByContext,
     deriveTaskState,
@@ -166,6 +167,31 @@ test('extractDescLinks dedupes by url, keeping the labelled occurrence', () => {
 
 test('extractDescLinks returns nothing for text without links', () => {
     assert.deepEqual(extractDescLinks('just a plain note | not a url'), []);
+});
+
+test('linkifyHTML wraps a bare URL in an anchor and escapes surrounding text', () => {
+    assert.equal(
+        linkifyHTML('see https://a.com/x now'),
+        'see <a href="https://a.com/x" target="_blank" rel="noopener noreferrer">https://a.com/x</a> now'
+    );
+});
+
+test('linkifyHTML leaves trailing sentence punctuation outside the link', () => {
+    assert.equal(
+        linkifyHTML('read https://a.com.'),
+        'read <a href="https://a.com" target="_blank" rel="noopener noreferrer">https://a.com</a>.'
+    );
+});
+
+test('linkifyHTML escapes HTML in the text and in the URL so it cannot inject markup', () => {
+    assert.equal(
+        linkifyHTML('<b>x</b> & https://a.com/?q=1&r=2'),
+        '&lt;b&gt;x&lt;/b&gt; &amp; <a href="https://a.com/?q=1&amp;r=2" target="_blank" rel="noopener noreferrer">https://a.com/?q=1&amp;r=2</a>'
+    );
+});
+
+test('linkifyHTML only matches http(s), leaving other schemes as escaped text', () => {
+    assert.equal(linkifyHTML('javascript:alert(1)'), 'javascript:alert(1)');
 });
 
 test('formatLinkLabel reduces a URL to its host', () => {

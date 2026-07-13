@@ -104,6 +104,31 @@ export function formatLinkLabel(url) {
     }
 }
 
+// Escape `text` for safe HTML interpolation and turn bare http(s) URLs into
+// clickable links that open in a new tab. Trailing sentence punctuation is left
+// outside the link (same trimming as extractLinks), so "see http://x.com." keeps
+// the period as plain text. Only http(s) is matched, so an href can never carry
+// a javascript: scheme. Used to render task update bodies inline.
+export function linkifyHTML(text) {
+    const urlRegex = /https?:\/\/[^\s<]+/g;
+    let out = '';
+    let last = 0;
+    let m;
+    while ((m = urlRegex.exec(text)) !== null) {
+        const raw = m[0];
+        const url = trimUrl(raw);            // url is always a prefix of raw
+        out += escapeHTML(text.slice(last, m.index));
+        if (url) {
+            const safe = escapeHTML(url);
+            out += `<a href="${safe}" target="_blank" rel="noopener noreferrer">${safe}</a>`;
+        }
+        out += escapeHTML(raw.slice(url.length));   // trimmed-off punctuation
+        last = m.index + raw.length;
+    }
+    out += escapeHTML(text.slice(last));
+    return out;
+}
+
 // ===== Date helpers =====
 
 // today (+ offsetDays) as a local YYYY-MM-DD string.

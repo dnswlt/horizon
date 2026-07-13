@@ -2,6 +2,7 @@ import {
     escapeHTML,
     extractDescLinks,
     formatLinkLabel,
+    linkifyHTML,
     getLocalDateString,
     formatShortDate,
     nextWeekdayDateString,
@@ -1031,7 +1032,8 @@ function createUpdateElement(update) {
 
     const body = document.createElement('div');
     body.className = 'update-body';
-    body.textContent = update.body;
+    // linkifyHTML escapes the text and turns bare URLs into clickable links.
+    body.innerHTML = linkifyHTML(update.body);
 
     el.appendChild(meta);
     el.appendChild(body);
@@ -1088,7 +1090,7 @@ function startEditUpdate(id, entry) {
     body.replaceChildren(box, actions);
     box.focus();
 
-    const restore = (text) => { body.textContent = text; };
+    const restore = (text) => { body.innerHTML = linkifyHTML(text); };
     cancelBtn.onclick = () => restore(original);
     saveBtn.onclick = async () => {
         const text = box.value.trim();
