@@ -178,6 +178,17 @@ body {
     color: white;
 }
 
+.btn-success {
+    background: var(--success-bg);
+    color: #6ee7b7;
+    border-color: rgba(16, 185, 129, 0.2);
+}
+
+.btn-success:hover {
+    background: var(--success);
+    color: white;
+}
+
 /* Workspace */
 .workspace {
     display: flex;
@@ -967,6 +978,11 @@ textarea {
     justify-content: flex-end;
     gap: 0.75rem;
     margin-top: 1.5rem;
+}
+
+/* Keep the completion action apart from Cancel/Save */
+.modal-actions #modal-complete-btn {
+    margin-right: auto;
 }
 
 /* Keyboard Shortcuts Help */

@@ -15,7 +15,7 @@ import {
     extractContexts,
     groupByContext,
     deriveTaskState,
-} from './core.js?v=56';
+} from './core.js?v=57';
 
 // Per-device view state lives in localStorage (see AGENTS.md); all keys use
 // the 'horizon-' prefix.
@@ -52,6 +52,7 @@ const taskDateSelect = document.getElementById('task-date');
 const addBtn = document.getElementById('add-task-btn');
 const modalCloseBtn = document.getElementById('modal-close-btn');
 const modalCancelBtn = document.getElementById('modal-cancel-btn');
+const modalCompleteBtn = document.getElementById('modal-complete-btn');
 const updatesTimeline = document.getElementById('updates-timeline');
 const updatesCount = document.getElementById('updates-count');
 const newUpdateInput = document.getElementById('new-update-input');
@@ -1037,6 +1038,13 @@ function openModal(task = null) {
         updatesCount.textContent = '0';
     }
 
+    // Toggle the Done button visibility: hide it if the task is already completed
+    if (task && task.completed) {
+        modalCompleteBtn.style.display = 'none';
+    } else {
+        modalCompleteBtn.style.display = '';
+    }
+
     updateQuickDateActiveHighlight();
     renderDescLinks();
     taskModal.classList.add('active');
@@ -1200,65 +1208,89 @@ function updateQuickDateActiveHighlight() {
     });
 }
 
-// Save form handler (Add / Edit)
-taskForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    
+// Validate and persist the form's content: PATCH when editing, POST when
+// creating. Returns the task id, or null when validation failed.
+async function saveTaskForm() {
     // Explicitly validate taskTitleInput since the form has 'novalidate' to bypass Safari's
     // date validation bug (setting date value = '' programmatically leaves the input in an invalid state).
     if (!taskTitleInput.reportValidity()) {
-        return;
+        return null;
     }
-    
+
     const id = taskIdField.value;
     const title = taskTitleInput.value.trim();
     const description = taskDescInput.value.trim();
     const dueDate = taskDateSelect.value || null;
-    
-    if (!title) return;
 
-    // Calculate position
-    let position = 0;
-    if (!id) {
-        // New task: place it at the end of the selected list
-        const sameListTasks = tasks.filter(t => {
-            if (dueDate) return t.due_date === dueDate;
-            // Backlog items have null or out-of-horizon due dates
-            const inHorizon = t.due_date && workdays.some(w => w.dateString === t.due_date);
-            return !t.due_date || !inHorizon;
-        });
-        position = sameListTasks.length;
+    if (!title) return null;
+
+    if (id) {
+        await editTaskContent(id, { title, description, due_date: dueDate }, 'Failed to update task');
+        return id;
     }
 
+    // New task: place it at the end of the selected list
+    const sameListTasks = tasks.filter(t => {
+        if (dueDate) return t.due_date === dueDate;
+        // Backlog items have null or out-of-horizon due dates
+        const inHorizon = t.due_date && workdays.some(w => w.dateString === t.due_date);
+        return !t.due_date || !inHorizon;
+    });
+    const created = await apiFetch('/api/tasks', {
+        method: 'POST',
+        body: { title, description, due_date: dueDate, position: sameListTasks.length },
+        errorMessage: 'Failed to create task'
+    });
+    taskIdField.value = created.id;
+    return created.id;
+}
+
+// Save form handler (Add / Edit)
+taskForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
     try {
-        if (id) {
-            // Edit API call
-            await editTaskContent(id, { title, description, due_date: dueDate }, 'Failed to update task');
-            showToast('Task updated.');
-        } else {
-            // Create API call
-            await apiFetch('/api/tasks', {
-                method: 'POST',
-                body: { title, description, due_date: dueDate, position },
-                errorMessage: 'Failed to create task'
-            });
-            showToast('Task created.');
-        }
-        
+        const wasEdit = Boolean(taskIdField.value);
+        const id = await saveTaskForm();
+        if (!id) return;
+        showToast(wasEdit ? 'Task updated.' : 'Task created.');
         closeModal();
         fetchTasks();
-        // Keep the active auxiliary view in sync when editing from it
-        if (viewSearch.classList.contains('active')) {
-            performSearch();
-        } else if (viewArchive.classList.contains('active')) {
-            fetchArchivedTasks(true);
-        } else if (viewContexts.classList.contains('active')) {
-            fetchOpenTasks();
-        }
+        refreshActiveAuxView();
     } catch (err) {
         showToast(err.message, 'error');
     }
 });
+
+// Keep the active auxiliary view in sync when editing from it
+function refreshActiveAuxView() {
+    if (viewSearch.classList.contains('active')) {
+        performSearch();
+    } else if (viewArchive.classList.contains('active')) {
+        fetchArchivedTasks(true);
+    } else if (viewContexts.classList.contains('active')) {
+        fetchOpenTasks();
+    }
+}
+
+// "Done" button in the task modal: save the form (creating the task first if
+// needed — handy for logging small tasks that are already done), then mark it
+// completed and close the modal.
+async function completeTaskFromModal() {
+    if (modalCompleteBtn.style.display === 'none') {
+        return;
+    }
+    try {
+        const id = await saveTaskForm();
+        if (!id) return;
+        await postTaskAction(id, 'complete', { completed: true }, 'Could not update task status');
+        closeModal();
+        showToast('Task completed!');
+        fetchTasks();
+        refreshActiveAuxView();
+    } catch (err) {
+        showToast(err.message, 'error');
+    }
+}
 
 // Keyboard Shortcuts
 // key → { label, run }. The help popup is generated from this registry, so
@@ -1323,6 +1355,15 @@ function setupEventListeners() {
     addBtn.addEventListener('click', () => openModal());
     modalCloseBtn.addEventListener('click', closeModal);
     modalCancelBtn.addEventListener('click', closeModal);
+    modalCompleteBtn.addEventListener('click', completeTaskFromModal);
+
+    // Ctrl/Cmd+Shift+Enter anywhere in the modal marks the task as done
+    taskModal.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && e.shiftKey) {
+            e.preventDefault();
+            completeTaskFromModal();
+        }
+    });
 
     // Expand/collapse the snoozed strip
     snoozedStripHeader.addEventListener('click', () => {
@@ -1351,8 +1392,9 @@ function setupEventListeners() {
     taskDescInput.addEventListener('input', renderDescLinks);
 
     // Ctrl/Cmd+Enter submits the task form from within the description textarea
+    // (without Shift, which is the modal-wide mark-as-done shortcut)
     taskDescInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !e.shiftKey) {
             e.preventDefault();
             taskForm.requestSubmit();
         }
@@ -1361,7 +1403,7 @@ function setupEventListeners() {
     // Task updates: post, plus delegated edit/delete on the timeline
     postUpdateBtn.addEventListener('click', postUpdate);
     newUpdateInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !e.shiftKey) {
             e.preventDefault();
             postUpdate();
         }

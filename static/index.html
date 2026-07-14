@@ -4,13 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Horizon</title>
-    <link rel="icon" type="image/png" href="/static/favicon.png?v=56">
-    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v=56">
-    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=56">
+    <link rel="icon" type="image/png" href="/static/favicon.png?v=57">
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v=57">
+    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=57">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css?v=56">
+    <link rel="stylesheet" href="/static/style.css?v=57">
 </head>
 <body>
     <!-- App Container -->
@@ -339,7 +339,8 @@
                                     Any URL becomes a clickable chip. To name one, put a
                                     label before it on its own line:
                                     <span class="hint-example">Design doc | https://example.com/spec</span>
-                                    <br>Hit Ctrl+Enter to save the task.
+                                    <br>Hit Ctrl+Enter to save the task,
+                                    Ctrl+Shift+Enter to mark it done.
                                 </span>
                             </span>
                         </div>
@@ -360,6 +361,12 @@
                     </div>
 
                     <div class="modal-actions">
+                        <button type="button" class="btn btn-success" id="modal-complete-btn" title="Save and mark as done (Ctrl+Shift+Enter)">
+                            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                            Done
+                        </button>
                         <button type="button" class="btn btn-secondary" id="modal-cancel-btn">Cancel</button>
                         <button type="submit" class="btn btn-primary" id="modal-submit-btn">Save Task</button>
                     </div>
@@ -403,6 +410,6 @@
     <!-- Toast Notifications -->
     <div id="toast-container"></div>
 
-    <script type="module" src="/static/app.js?v=56"></script>
+    <script type="module" src="/static/app.js?v=57"></script>
 </body>
 </html>
