@@ -1,7 +1,7 @@
 //! The Horizon REST API: axum handlers over the SQLite store.
 //!
 //! State-changing task operations are intent-shaped endpoints (complete,
-//! snooze, wait, restore, ...) rather than one omnibus update, so every
+//! snooze, wait, maybe, restore, ...) rather than one omnibus update, so every
 //! request body field is meaningful on its own and `null` always means
 //! "clear" — there is no "was this key present?" introspection anywhere.
 
@@ -73,6 +73,7 @@ pub fn router(db_conn: Connection) -> Router {
         .route("/api/tasks", get(get_board_tasks).post(create_task))
         .route("/api/tasks/open", get(get_open_tasks))
         .route("/api/tasks/waiting", get(get_waiting_tasks))
+        .route("/api/tasks/maybe", get(get_maybe_tasks))
         .route("/api/tasks/snoozed", get(get_snoozed_tasks))
         .route("/api/tasks/search", get(search_tasks))
         .route("/api/tasks/archive", get(get_archived_tasks))
@@ -82,6 +83,7 @@ pub fn router(db_conn: Connection) -> Router {
         .route("/api/tasks/{id}/complete", post(complete_task))
         .route("/api/tasks/{id}/snooze", post(snooze_task))
         .route("/api/tasks/{id}/wait", post(wait_task))
+        .route("/api/tasks/{id}/maybe", post(maybe_task))
         .route("/api/tasks/{id}/restore", post(restore_task))
         .route("/api/tasks/{id}/permanent", delete(delete_task_permanent))
         .route("/api/tasks/{id}/updates", get(get_task_updates).post(create_task_update))
@@ -220,6 +222,7 @@ async fn get_board_tasks(State(state): State<SharedState>) -> ApiResult<Json<Vec
            AND deleted_at IS NULL
            AND (defer_until IS NULL OR defer_until <= ?2)
            AND waiting_since IS NULL
+           AND maybe_since IS NULL
          ORDER BY position ASC",
         params![week_ago, db::today_local()],
     )?;
@@ -251,6 +254,21 @@ async fn get_waiting_tasks(State(state): State<SharedState>) -> ApiResult<Json<V
         "SELECT * FROM tasks
          WHERE completed = 0 AND deleted_at IS NULL AND waiting_since IS NOT NULL
          ORDER BY waiting_since ASC",
+        [],
+    )?;
+    Ok(Json(tasks))
+}
+
+/// "Maybe" list: ideas parked without any date, reviewed manually on their
+/// own tab. Oldest first, so long-parked ideas surface for a keep-or-drop
+/// decision.
+async fn get_maybe_tasks(State(state): State<SharedState>) -> ApiResult<Json<Vec<Task>>> {
+    let conn = state.db.lock().unwrap();
+    let tasks = query_tasks(
+        &conn,
+        "SELECT * FROM tasks
+         WHERE completed = 0 AND deleted_at IS NULL AND maybe_since IS NOT NULL
+         ORDER BY maybe_since ASC",
         [],
     )?;
     Ok(Json(tasks))
@@ -467,10 +485,12 @@ async fn edit_task(
     }
     let conn = state.db.lock().unwrap();
     get_task(&conn, &id)?;
-    // Scheduling onto a real day acknowledges any snooze/resurfaced state.
+    // Scheduling onto a real day acknowledges any snooze/resurfaced state and
+    // promotes a Maybe task back onto the board.
     conn.execute(
         "UPDATE tasks SET title = ?1, description = ?2, due_date = ?3,
-             defer_until = CASE WHEN ?3 IS NOT NULL THEN NULL ELSE defer_until END
+             defer_until = CASE WHEN ?3 IS NOT NULL THEN NULL ELSE defer_until END,
+             maybe_since = CASE WHEN ?3 IS NOT NULL THEN NULL ELSE maybe_since END
          WHERE id = ?4",
         params![body.title, body.description, body.due_date, id],
     )?;
@@ -508,7 +528,8 @@ struct SnoozeBody {
 /// Snooze a task until a future date (it leaves the board and waits in the
 /// Snoozed strip), or clear the snooze with `until: null` — which both
 /// un-snoozes early and dismisses the "resurfaced" state. Snoozing also
-/// takes the task off the board, so any due date is cleared.
+/// takes the task off the board, so any due date is cleared, and off the
+/// Maybe list — a snoozed task has a wake date again.
 async fn snooze_task(
     State(state): State<SharedState>,
     UrlPath(id): UrlPath<String>,
@@ -523,7 +544,8 @@ async fn snooze_task(
     get_task(&conn, &id)?;
     match &body.until {
         Some(until) => conn.execute(
-            "UPDATE tasks SET defer_until = ?1, due_date = NULL WHERE id = ?2",
+            "UPDATE tasks SET defer_until = ?1, due_date = NULL, maybe_since = NULL
+             WHERE id = ?2",
             params![until, id],
         )?,
         None => conn.execute("UPDATE tasks SET defer_until = NULL WHERE id = ?1", params![id])?,
@@ -536,7 +558,7 @@ struct WaitBody {
     waiting: bool,
 }
 
-/// Park a task on the "Waiting For" list (GTD): no wake date by design —
+/// Park a task on the "Waiting For" list: no wake date by design —
 /// reviewed, not alarmed. Entering stamps waiting_since and clears any board
 /// placement / snooze; leaving just clears the stamp.
 async fn wait_task(
@@ -548,12 +570,42 @@ async fn wait_task(
     get_task(&conn, &id)?;
     if body.waiting {
         conn.execute(
-            "UPDATE tasks SET waiting_since = ?1, due_date = NULL, defer_until = NULL
+            "UPDATE tasks SET waiting_since = ?1,
+                 due_date = NULL, defer_until = NULL, maybe_since = NULL
              WHERE id = ?2",
             params![db::now_utc(), id],
         )?;
     } else {
         conn.execute("UPDATE tasks SET waiting_since = NULL WHERE id = ?1", params![id])?;
+    }
+    Ok(Json(get_task(&conn, &id)?))
+}
+
+#[derive(Deserialize)]
+struct MaybeBody {
+    maybe: bool,
+}
+
+/// Park a task on the "Maybe" list: an idea to review manually, with no date
+/// attached. Entering stamps maybe_since and clears any board placement /
+/// snooze / waiting state; leaving just clears the stamp (the task returns
+/// to the backlog).
+async fn maybe_task(
+    State(state): State<SharedState>,
+    UrlPath(id): UrlPath<String>,
+    Json(body): Json<MaybeBody>,
+) -> ApiResult<Json<Task>> {
+    let conn = state.db.lock().unwrap();
+    get_task(&conn, &id)?;
+    if body.maybe {
+        conn.execute(
+            "UPDATE tasks SET maybe_since = ?1,
+                 due_date = NULL, defer_until = NULL, waiting_since = NULL
+             WHERE id = ?2",
+            params![db::now_utc(), id],
+        )?;
+    } else {
+        conn.execute("UPDATE tasks SET maybe_since = NULL WHERE id = ?1", params![id])?;
     }
     Ok(Json(get_task(&conn, &id)?))
 }

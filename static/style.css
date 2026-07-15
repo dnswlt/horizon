@@ -1839,14 +1839,16 @@ textarea {
     margin: 0.35rem 0.15rem;
 }
 
-/* The chevrons hint at the task sliding off the board. */
+/* The chevrons hint at the task sliding off the board; the Maybe (?) icon
+   drifts the same way. */
 .snooze-waiting-icon {
     flex-shrink: 0;
     color: var(--text-muted);
     transition: transform var(--transition-fast);
 }
 
-.snooze-waiting:hover .snooze-waiting-icon {
+.snooze-waiting:hover .snooze-waiting-icon,
+.snooze-maybe:hover .snooze-waiting-icon {
     color: var(--text-secondary);
     transform: translateX(2px);
 }

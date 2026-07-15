@@ -115,7 +115,7 @@ async fn search_titles(app: &TestApp, query: &str) -> Vec<String> {
     app.titles(&format!("/api/tasks/search?{query}")).await
 }
 
-// ===== Waiting-for list (GTD-style park with no wake date) =====
+// ===== Waiting-for list (park with no wake date) =====
 
 #[tokio::test]
 async fn wait_moves_task_off_board_into_waiting_list() {
@@ -177,6 +177,113 @@ async fn completed_waiting_task_drops_off_the_waiting_list() {
     app.request("POST", &format!("/api/tasks/{tid}/complete"), Some(json!({"completed": true})))
         .await;
     assert!(app.titles("/api/tasks/waiting").await.is_empty());
+}
+
+// ===== Maybe list (parked ideas, no date) =====
+
+#[tokio::test]
+async fn maybe_moves_task_off_board_into_maybe_list() {
+    let app = test_app();
+    let tid = app.make_task("Learn Esperanto", Some("2026-07-15")).await;
+
+    let (status, task) = app
+        .request("POST", &format!("/api/tasks/{tid}/maybe"), Some(json!({"maybe": true})))
+        .await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert!(task["maybe_since"].is_string());
+    // Parking clears the board placement.
+    assert!(task["due_date"].is_null());
+
+    assert!(!app.titles("/api/tasks").await.contains(&"Learn Esperanto".to_string()));
+    assert!(app.titles("/api/tasks/maybe").await.contains(&"Learn Esperanto".to_string()));
+}
+
+#[tokio::test]
+async fn unmaybe_returns_task_to_the_board() {
+    let app = test_app();
+    let tid = app.make_task("Learn Esperanto", None).await;
+    app.request("POST", &format!("/api/tasks/{tid}/maybe"), Some(json!({"maybe": true}))).await;
+
+    let (status, task) = app
+        .request("POST", &format!("/api/tasks/{tid}/maybe"), Some(json!({"maybe": false})))
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(task["maybe_since"].is_null());
+
+    assert!(app.titles("/api/tasks").await.contains(&"Learn Esperanto".to_string()));
+    assert!(app.titles("/api/tasks/maybe").await.is_empty());
+}
+
+#[tokio::test]
+async fn maybe_is_exclusive_with_snooze_and_waiting() {
+    let app = test_app();
+
+    // Entering Maybe clears a snooze and a waiting state.
+    let tid = app.make_task("Idea", None).await;
+    app.request("POST", &format!("/api/tasks/{tid}/snooze"), Some(json!({"until": "2099-01-01"})))
+        .await;
+    app.request("POST", &format!("/api/tasks/{tid}/wait"), Some(json!({"waiting": true}))).await;
+    let (_, task) =
+        app.request("POST", &format!("/api/tasks/{tid}/maybe"), Some(json!({"maybe": true}))).await;
+    assert!(task["defer_until"].is_null());
+    assert!(task["waiting_since"].is_null());
+
+    // ... and snoozing or waiting takes the task off the Maybe list again.
+    let (_, task) = app
+        .request("POST", &format!("/api/tasks/{tid}/snooze"), Some(json!({"until": "2099-01-01"})))
+        .await;
+    assert!(task["maybe_since"].is_null());
+
+    app.request("POST", &format!("/api/tasks/{tid}/maybe"), Some(json!({"maybe": true}))).await;
+    let (_, task) =
+        app.request("POST", &format!("/api/tasks/{tid}/wait"), Some(json!({"waiting": true}))).await;
+    assert!(task["maybe_since"].is_null());
+}
+
+#[tokio::test]
+async fn scheduling_a_maybe_task_promotes_it_to_the_board() {
+    let app = test_app();
+    let tid = app.make_task("Idea", None).await;
+    app.request("POST", &format!("/api/tasks/{tid}/maybe"), Some(json!({"maybe": true}))).await;
+
+    let (status, task) = app
+        .request(
+            "PATCH",
+            &format!("/api/tasks/{tid}"),
+            Some(json!({"title": "Idea", "description": "", "due_date": "2026-07-20"})),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(task["maybe_since"].is_null());
+    assert_eq!(task["due_date"], "2026-07-20");
+    assert!(app.titles("/api/tasks/maybe").await.is_empty());
+}
+
+#[tokio::test]
+async fn maybe_list_is_oldest_first() {
+    let app = test_app();
+    let old = app.make_task("Older", None).await;
+    let new = app.make_task("Newer", None).await;
+    for (ts, id) in [("2024-01-01T00:00:00Z", &old), ("2025-01-01T00:00:00Z", &new)] {
+        app.conn
+            .execute(
+                "UPDATE tasks SET maybe_since = ?1 WHERE id = ?2",
+                rusqlite::params![ts, id],
+            )
+            .unwrap();
+    }
+    assert_eq!(app.titles("/api/tasks/maybe").await, vec!["Older", "Newer"]);
+}
+
+#[tokio::test]
+async fn completed_maybe_task_drops_off_the_maybe_list() {
+    let app = test_app();
+    let tid = app.make_task("Idea", None).await;
+    app.request("POST", &format!("/api/tasks/{tid}/maybe"), Some(json!({"maybe": true}))).await;
+    app.request("POST", &format!("/api/tasks/{tid}/complete"), Some(json!({"completed": true})))
+        .await;
+    assert!(app.titles("/api/tasks/maybe").await.is_empty());
 }
 
 // ===== /api/tasks/open — the Contexts tab's "everything open" feed =====
@@ -638,6 +745,7 @@ async fn unknown_task_actions_return_404() {
         ("POST", "/api/tasks/nope/complete", Some(json!({"completed": true}))),
         ("POST", "/api/tasks/nope/snooze", Some(json!({"until": null}))),
         ("POST", "/api/tasks/nope/wait", Some(json!({"waiting": true}))),
+        ("POST", "/api/tasks/nope/maybe", Some(json!({"maybe": true}))),
         ("POST", "/api/tasks/nope/restore", None),
         ("PATCH", "/api/tasks/nope", Some(json!({"title": "x", "description": "", "due_date": null}))),
         ("DELETE", "/api/tasks/nope", None),

@@ -19,6 +19,11 @@ like Jira and Trello tiring to use.
   ever shows what's actually actionable now. A task with a future `defer_until`
   leaves the board and waits in the Snoozed strip; on that date it resurfaces
   (marked "Snooze ended"). Un-snoozing returns it immediately.
+- **Maybe is the parking lot for someday-ideas.** For the fuzzy "I'd like to
+  do this at some point" ideas that fit neither the Backlog (too committed) nor
+  Snooze (no date to pop back on). Maybe tasks live on their own tab as an
+  archive-style list and only return via an explicit decision: un-maybe (back
+  to Backlog) or scheduling a date in the edit dialog.
 - **Single user, no bloat.** No accounts, no auth, no teams, no permissions.
   No task-type hierarchies, epics, statuses-of-statuses, or custom fields.
   If a feature smells like enterprise project management, it probably doesn't
@@ -71,8 +76,8 @@ like Jira and Trello tiring to use.
 Columns of note: `id` (uuid), `title`, `description`, `due_date`
 (`YYYY-MM-DD` or NULL = backlog), `position` (order within a lane),
 `completed` with `completed_at`, `deleted_at` (soft delete),
-`defer_until` (snooze date), `waiting_since` (Waiting-for list), and
-`created_at`.
+`defer_until` (snooze date), `waiting_since` (Waiting-for list),
+`maybe_since` (Maybe list), and `created_at`.
 
 **Formats:** timestamp columns are RFC 3339 UTC (`2026-07-11T09:30:00Z`),
 always written from Rust (`db::now_utc()`), never via SQL
@@ -97,13 +102,14 @@ entries).
 ## API shape (important for correct changes)
 
 Task state changes are **intent endpoints**, not one omnibus update:
-`POST /api/tasks/{id}/complete|snooze|wait|restore`, plus
+`POST /api/tasks/{id}/complete|snooze|wait|maybe|restore`, plus
 `PATCH /api/tasks/{id}` for content edits (title/description/due_date — the
 full set every time, `due_date: null` = backlog). Every body field is
 meaningful on its own and `null` always means "clear"; don't add handlers
 that need "was this key present?" introspection. Business rules live with
-the endpoint: scheduling clears a snooze, snoozing/waiting clears the due
-date, completing stamps `completed_at`.
+the endpoint: scheduling clears a snooze and a Maybe state, snoozing/
+waiting/maybe-ing clears the due date, the parked states (snooze, waiting,
+maybe) are mutually exclusive, completing stamps `completed_at`.
 
 ## Conventions (important for correct changes)
 

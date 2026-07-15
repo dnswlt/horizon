@@ -6,7 +6,7 @@
 //! `tasks.db` upgrades transparently on first launch.
 //!
 //! Timestamp columns (`created_at`, `completed_at`, `deleted_at`,
-//! `waiting_since`) are RFC 3339 UTC with second precision, e.g.
+//! `waiting_since`, `maybe_since`) are RFC 3339 UTC with second precision, e.g.
 //! "2026-07-11T09:30:00Z", always written from Rust — never via SQL
 //! `CURRENT_TIMESTAMP`, which produces the legacy "YYYY-MM-DD HH:MM:SS"
 //! format the v1 migration rewrites. Calendar-day columns (`due_date`,
@@ -19,7 +19,7 @@ use time::format_description::BorrowedFormatItem;
 use time::macros::format_description;
 use time::{Duration, OffsetDateTime};
 
-const SCHEMA_VERSION: i64 = 1;
+const SCHEMA_VERSION: i64 = 2;
 
 const TIMESTAMP_FORMAT: &[BorrowedFormatItem<'static>] =
     format_description!("[year]-[month]-[day]T[hour]:[minute]:[second]Z");
@@ -61,6 +61,7 @@ pub struct Task {
     pub deleted_at: Option<String>,
     pub defer_until: Option<String>,
     pub waiting_since: Option<String>,
+    pub maybe_since: Option<String>,
     pub created_at: Option<String>,
 }
 
@@ -78,6 +79,7 @@ impl Task {
             deleted_at: row.get("deleted_at")?,
             defer_until: row.get("defer_until")?,
             waiting_since: row.get("waiting_since")?,
+            maybe_since: row.get("maybe_since")?,
             created_at: row.get("created_at")?,
         })
     }
@@ -121,8 +123,17 @@ fn migrate(conn: &mut Connection) -> rusqlite::Result<()> {
     if version < 1 {
         migrate_to_v1(&tx)?;
     }
+    if version < 2 {
+        migrate_to_v2(&tx)?;
+    }
     tx.pragma_update(None, "user_version", SCHEMA_VERSION)?;
     tx.commit()
+}
+
+/// v1 -> v2: the "Maybe" list. NULL = not on the list.
+fn migrate_to_v2(tx: &Transaction) -> rusqlite::Result<()> {
+    tx.execute("ALTER TABLE tasks ADD COLUMN maybe_since TEXT", [])?;
+    Ok(())
 }
 
 /// v0 -> v1: create the schema if absent, bring a Python-era database up to
