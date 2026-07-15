@@ -15,7 +15,7 @@ import {
     extractContexts,
     groupByContext,
     deriveTaskState,
-} from './core.js?v=57';
+} from './core.js?v=60';
 
 // Per-device view state lives in localStorage (see AGENTS.md); all keys use
 // the 'horizon-' prefix.
@@ -76,6 +76,12 @@ const deletedSection = document.querySelector('.deleted-section');
 const deletedToggle = document.getElementById('deleted-toggle');
 const deletedListContainer = document.getElementById('deleted-list-container');
 const toggleCompletedBtn = document.getElementById('toggle-completed-btn');
+
+// Maybe Elements
+const tabMaybe = document.getElementById('tab-maybe');
+const viewMaybe = document.getElementById('view-maybe');
+const maybeItemsContainer = document.getElementById('maybe-items-container');
+const maybeEmptyMsg = document.getElementById('maybe-empty-msg');
 
 // Contexts Elements
 const tabContexts = document.getElementById('tab-contexts');
@@ -625,6 +631,7 @@ async function deleteTask(id) {
 
         tasks = tasks.filter(t => t.id !== id);
         renderTasks();
+        refreshActiveAuxView(); // deleting from the Maybe tab removes the card there
         showToast('Task moved to Trash.');
     } catch (err) {
         showToast(err.message, 'error');
@@ -653,7 +660,6 @@ function openSnoozePopover(anchorEl, task) {
     closeSnoozePopover();
 
     const presets = [
-        { label: 'Tomorrow', date: getLocalDateString(1) },
         { label: 'Next week', date: nextWeekdayDateString(1) },
         { label: 'In 2 weeks', date: getLocalDateString(14) },
         { label: 'Next month', date: nextMonthDateString() },
@@ -680,6 +686,14 @@ function openSnoozePopover(anchorEl, task) {
                 <polyline points="17 17 22 12 17 7"></polyline>
             </svg>
         </button>
+        <button type="button" class="snooze-preset snooze-maybe">
+            <span>Move to Maybe</span>
+            <svg class="snooze-waiting-icon" viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+        </button>
     `;
     document.body.appendChild(pop);
     snoozePopoverEl = pop;
@@ -692,8 +706,8 @@ function openSnoozePopover(anchorEl, task) {
     pop.style.left = `${left}px`;
     pop.style.top = `${rect.bottom + window.scrollY + 6}px`;
 
-    // Only the dated presets snooze; the Waiting button shares .snooze-preset for
-    // styling but has no data-date and its own handler below.
+    // Only the dated presets snooze; the Waiting/Maybe buttons share
+    // .snooze-preset for styling but have no data-date and their own handlers below.
     pop.querySelectorAll('.snooze-preset[data-date]').forEach(btn => {
         btn.addEventListener('click', async (e) => {
             e.stopPropagation();
@@ -716,6 +730,12 @@ function openSnoozePopover(anchorEl, task) {
         e.stopPropagation();
         closeSnoozePopover();
         await waitTask(task);
+    });
+
+    pop.querySelector('.snooze-maybe').addEventListener('click', async (e) => {
+        e.stopPropagation();
+        closeSnoozePopover();
+        await maybeTask(task);
     });
 
     // Bind outside-click on the next tick so the opening click doesn't close it
@@ -763,6 +783,99 @@ async function unwaitTask(id) {
     } catch (err) {
         showToast(err.message, 'error');
     }
+}
+
+// ===== Maybe list: parked "someday" ideas, no date, reviewed on their own tab =====
+
+async function maybeTask(task) {
+    try {
+        await postTaskAction(task.id, 'maybe', { maybe: true }, 'Failed to move task to Maybe');
+        await fetchTasks();
+        showToast('Moved to Maybe.');
+    } catch (err) {
+        showToast(err.message, 'error');
+    }
+}
+
+async function unmaybeTask(id) {
+    try {
+        await postTaskAction(id, 'maybe', { maybe: false }, 'Failed to remove task from Maybe');
+        await fetchTasks();
+        refreshActiveAuxView();
+        showToast('Task returned to backlog.');
+    } catch (err) {
+        showToast(err.message, 'error');
+    }
+}
+
+// The Maybe tab: archive-style rows (no date group headers). A task leaves
+// the list via the back-to-Backlog button or by getting a date in the edit
+// modal.
+async function fetchMaybeTasks() {
+    try {
+        renderMaybeTasks(await apiFetch('/api/tasks/maybe', { errorMessage: 'Failed to load Maybe tasks' }));
+    } catch (err) {
+        showToast(err.message, 'error');
+    }
+}
+
+function renderMaybeTasks(maybes) {
+    maybeItemsContainer.innerHTML = '';
+    maybeEmptyMsg.style.display = maybes.length ? 'none' : 'flex';
+
+    maybes.forEach(task => {
+        const item = document.createElement('div');
+        const itemColor = deriveColor(task);
+        item.className = `archive-item ${itemColor ? 'color-' + itemColor : ''}`;
+
+        const descHtml = task.description ? `<p class="archive-item-desc">${escapeHTML(task.description)}</p>` : '';
+
+        item.innerHTML = `
+            <div class="archive-item-info">
+                <span class="archive-item-title" style="text-decoration: none;">${escapeHTML(task.title)}</span>
+                ${descHtml}
+                <div class="archive-item-meta">
+                    <span>Maybe since: ${formatDoneDate(task.maybe_since)}</span>
+                </div>
+            </div>
+            <div class="search-item-actions">
+                <div class="row-actions">
+                    <button class="action-btn unmaybe-btn" title="Move back to Backlog">
+                        <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="9 14 4 9 9 4"></polyline>
+                            <path d="M20 20v-7a4 4 0 0 0-4-4H4"></path>
+                        </svg>
+                    </button>
+                    <button class="action-btn edit-btn" title="View / edit task">${ICONS.edit}</button>
+                    <button class="action-btn delete-btn" title="Delete task">${ICONS.trash}</button>
+                </div>
+            </div>
+        `;
+
+        item.querySelector('.unmaybe-btn').addEventListener('click', async (e) => {
+            e.stopPropagation();
+            await unmaybeTask(task.id);
+        });
+
+        item.querySelector('.edit-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            openModal(task);
+        });
+
+        item.querySelector('.delete-btn').addEventListener('click', async (e) => {
+            e.stopPropagation();
+            // No confirmation: deletes are soft (recoverable from Archive → Trash)
+            await deleteTask(task.id);
+        });
+
+        // Double click row to view/edit (but not when double-clicking an action button)
+        item.addEventListener('dblclick', (e) => {
+            if (e.target.closest('.row-actions')) return;
+            openModal(task);
+        });
+
+        maybeItemsContainer.appendChild(item);
+    });
 }
 
 async function fetchSnoozedTasks() {
@@ -1269,6 +1382,8 @@ function refreshActiveAuxView() {
         fetchArchivedTasks(true);
     } else if (viewContexts.classList.contains('active')) {
         fetchOpenTasks();
+    } else if (viewMaybe.classList.contains('active')) {
+        fetchMaybeTasks();
     }
 }
 
@@ -1306,6 +1421,7 @@ const SHORTCUTS = {
     '3': { label: 'Days on the board',   keyLabel: '3-5', run: () => setLaneCount(3) },
     '4': { run: () => setLaneCount(4) },
     '5': { run: () => setLaneCount(5) },
+    'm': { label: 'Maybe',               run: () => switchTab('maybe') },
     'a': { label: 'Archive',             run: () => switchTab('archive') },
     'c': { label: 'Contexts',            run: () => switchTab('contexts') },
     '?': { label: 'Toggle this help',    run: () => toggleShortcutHelp() },
@@ -1491,6 +1607,7 @@ function setupEventListeners() {
     
     // Tab switching
     tabPlanner.addEventListener('click', () => switchTab('planner'));
+    tabMaybe.addEventListener('click', () => switchTab('maybe'));
     tabArchive.addEventListener('click', () => switchTab('archive'));
     tabContexts.addEventListener('click', () => switchTab('contexts'));
     tabSearch.addEventListener('click', () => switchTab('search'));
@@ -1562,8 +1679,8 @@ function setupEventListeners() {
 
 // Tab Switching logic
 async function switchTab(tabId) {
-    const tabs = { planner: tabPlanner, archive: tabArchive, contexts: tabContexts, search: tabSearch };
-    const views = { planner: viewPlanner, archive: viewArchive, contexts: viewContexts, search: viewSearch };
+    const tabs = { planner: tabPlanner, maybe: tabMaybe, archive: tabArchive, contexts: tabContexts, search: tabSearch };
+    const views = { planner: viewPlanner, maybe: viewMaybe, archive: viewArchive, contexts: viewContexts, search: viewSearch };
     Object.keys(tabs).forEach(id => {
         tabs[id].classList.toggle('active', id === tabId);
         views[id].classList.toggle('active', id === tabId);
@@ -1577,6 +1694,8 @@ async function switchTab(tabId) {
     if (tabId === 'archive') {
         await fetchArchivedTasks(true);
         await fetchDeletedTasks(true);
+    } else if (tabId === 'maybe') {
+        await fetchMaybeTasks();
     } else if (tabId === 'contexts') {
         await fetchOpenTasks();
     } else if (tabId === 'search') {
