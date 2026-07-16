@@ -15,7 +15,7 @@ import {
     extractContexts,
     groupByContext,
     deriveTaskState,
-} from './core.js?v=61';
+} from './core.js?v=64';
 
 // Per-device view state lives in localStorage (see AGENTS.md); all keys use
 // the 'horizon-' prefix.
