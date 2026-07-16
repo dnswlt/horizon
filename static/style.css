@@ -1247,6 +1247,21 @@ textarea {
     border-color: var(--border-color-hover);
 }
 
+/* Only the Maybe list's rows are drag-reorderable */
+#maybe-items-container .archive-item {
+    cursor: grab;
+    user-select: none;
+}
+
+#maybe-items-container .archive-item:active {
+    cursor: grabbing;
+}
+
+#maybe-items-container .archive-item.dragging {
+    opacity: 0.4;
+    border-color: var(--primary);
+}
+
 .archive-item-info {
     display: flex;
     flex-direction: column;

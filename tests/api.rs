@@ -261,19 +261,50 @@ async fn scheduling_a_maybe_task_promotes_it_to_the_board() {
 }
 
 #[tokio::test]
-async fn maybe_list_is_oldest_first() {
+async fn maybe_list_orders_by_position_with_since_breaking_ties() {
     let app = test_app();
-    let old = app.make_task("Older", None).await;
-    let new = app.make_task("Newer", None).await;
-    for (ts, id) in [("2024-01-01T00:00:00Z", &old), ("2025-01-01T00:00:00Z", &new)] {
+    let tied_old = app.make_task("Tied old", None).await;
+    let tied_new = app.make_task("Tied new", None).await;
+    let later = app.make_task("Later", None).await;
+    for (id, position, since) in [
+        (&tied_old, 0, "2024-01-01T00:00:00Z"),
+        (&tied_new, 0, "2025-01-01T00:00:00Z"),
+        (&later, 1, "2023-01-01T00:00:00Z"),
+    ] {
         app.conn
             .execute(
-                "UPDATE tasks SET maybe_since = ?1 WHERE id = ?2",
-                rusqlite::params![ts, id],
+                "UPDATE tasks SET position = ?1, maybe_since = ?2 WHERE id = ?3",
+                rusqlite::params![position, since, id],
             )
             .unwrap();
     }
-    assert_eq!(app.titles("/api/tasks/maybe").await, vec!["Older", "Newer"]);
+    assert_eq!(app.titles("/api/tasks/maybe").await, vec!["Tied old", "Tied new", "Later"]);
+}
+
+#[tokio::test]
+async fn reorder_persists_maybe_list_order() {
+    let app = test_app();
+    let a = app.make_task("A", None).await;
+    let b = app.make_task("B", None).await;
+    for id in [&a, &b] {
+        app.request("POST", &format!("/api/tasks/{id}/maybe"), Some(json!({"maybe": true})))
+            .await;
+    }
+
+    let (status, _) = app
+        .request(
+            "POST",
+            "/api/tasks/reorder",
+            Some(json!({"tasks": [
+                {"id": b, "due_date": null, "position": 0},
+                {"id": a, "due_date": null, "position": 1},
+            ]})),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+
+    // New order persisted, and reordering did not pull the tasks off the list.
+    assert_eq!(app.titles("/api/tasks/maybe").await, vec!["B", "A"]);
 }
 
 #[tokio::test]

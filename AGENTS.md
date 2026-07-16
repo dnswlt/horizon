@@ -22,8 +22,9 @@ like Jira and Trello tiring to use.
 - **Maybe is the parking lot for someday-ideas.** For the fuzzy "I'd like to
   do this at some point" ideas that fit neither the Backlog (too committed) nor
   Snooze (no date to pop back on). Maybe tasks live on their own tab as an
-  archive-style list and only return via an explicit decision: un-maybe (back
-  to Backlog) or scheduling a date in the edit dialog.
+  archive-style list (drag rows to reorder; `position` with `maybe_since` as
+  tie-break) and only return via an explicit decision: un-maybe (back to
+  Backlog) or scheduling a date in the edit dialog.
 - **Single user, no bloat.** No accounts, no auth, no teams, no permissions.
   No task-type hierarchies, epics, statuses-of-statuses, or custom fields.
   If a feature smells like enterprise project management, it probably doesn't
