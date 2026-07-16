@@ -15,7 +15,7 @@ import {
     extractContexts,
     groupByContext,
     deriveTaskState,
-} from './core.js?v=60';
+} from './core.js?v=61';
 
 // Per-device view state lives in localStorage (see AGENTS.md); all keys use
 // the 'horizon-' prefix.
@@ -827,6 +827,16 @@ function renderMaybeTasks(maybes) {
         const item = document.createElement('div');
         const itemColor = deriveColor(task);
         item.className = `archive-item ${itemColor ? 'color-' + itemColor : ''}`;
+        item.dataset.id = task.id;
+
+        // Rows are drag-reorderable within the list (dragover lives on the
+        // container, wired once in setupEventListeners).
+        item.draggable = true;
+        item.addEventListener('dragstart', () => item.classList.add('dragging'));
+        item.addEventListener('dragend', async () => {
+            item.classList.remove('dragging');
+            await saveMaybeOrder();
+        });
 
         const descHtml = task.description ? `<p class="archive-item-desc">${escapeHTML(task.description)}</p>` : '';
 
@@ -876,6 +886,27 @@ function renderMaybeTasks(maybes) {
 
         maybeItemsContainer.appendChild(item);
     });
+}
+
+// Persist the Maybe list's manual order. due_date stays null, so the shared
+// reorder endpoint only writes positions (maybe_since is untouched); ties
+// from before the first manual reorder resolve by entry time server-side.
+async function saveMaybeOrder() {
+    const updates = [...maybeItemsContainer.children].map((row, index) => ({
+        id: row.dataset.id,
+        due_date: null,
+        position: index,
+    }));
+    if (updates.length === 0) return;
+
+    try {
+        await apiFetch('/api/tasks/reorder', {
+            method: 'POST', body: { tasks: updates }, errorMessage: 'Failed to save order'
+        });
+    } catch (err) {
+        showToast(err.message, 'error');
+        fetchMaybeTasks(); // revert to server state
+    }
 }
 
 async function fetchSnoozedTasks() {
@@ -1046,8 +1077,8 @@ function getParentDropzone(list) {
 }
 
 // Calculate which card the cursor is hovering above
-function getDragAfterElement(container, y) {
-    const draggableElements = [...container.querySelectorAll('.task-card:not(.dragging)')];
+function getDragAfterElement(container, y, selector = '.task-card') {
+    const draggableElements = [...container.querySelectorAll(`${selector}:not(.dragging)`)];
     
     return draggableElements.reduce((closest, child) => {
         const box = child.getBoundingClientRect();
@@ -1478,6 +1509,21 @@ function setupEventListeners() {
         if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && e.shiftKey) {
             e.preventDefault();
             completeTaskFromModal();
+        }
+    });
+
+    // Reordering within the Maybe list: reposition the dragged row live. A
+    // single list with no cross-list drops, so no drop-zone highlighting.
+    maybeItemsContainer.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        const dragging = maybeItemsContainer.querySelector('.dragging');
+        if (!dragging) return;
+
+        const afterElement = getDragAfterElement(maybeItemsContainer, e.clientY, '.archive-item');
+        if (afterElement == null) {
+            maybeItemsContainer.appendChild(dragging);
+        } else {
+            maybeItemsContainer.insertBefore(dragging, afterElement);
         }
     });
 

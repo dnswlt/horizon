@@ -260,15 +260,16 @@ async fn get_waiting_tasks(State(state): State<SharedState>) -> ApiResult<Json<V
 }
 
 /// "Maybe" list: ideas parked without any date, reviewed manually on their
-/// own tab. Oldest first, so long-parked ideas surface for a keep-or-drop
-/// decision.
+/// own tab. Manually ordered via drag-and-drop (the shared reorder endpoint
+/// writes `position`); position ties — tasks never reordered since parking —
+/// break by entry time, oldest first.
 async fn get_maybe_tasks(State(state): State<SharedState>) -> ApiResult<Json<Vec<Task>>> {
     let conn = state.db.lock().unwrap();
     let tasks = query_tasks(
         &conn,
         "SELECT * FROM tasks
          WHERE completed = 0 AND deleted_at IS NULL AND maybe_since IS NOT NULL
-         ORDER BY maybe_since ASC",
+         ORDER BY position ASC, maybe_since ASC",
         [],
     )?;
     Ok(Json(tasks))
