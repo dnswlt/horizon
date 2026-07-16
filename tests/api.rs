@@ -282,6 +282,23 @@ async fn maybe_list_orders_by_position_with_since_breaking_ties() {
 }
 
 #[tokio::test]
+async fn parking_appends_to_the_bottom_of_the_maybe_list() {
+    let app = test_app();
+    // "First" sits far down the backlog, "Second" at its top. Parking must
+    // append in entry order — the old backlog positions must not leak in.
+    let first = app.make_task("First", None).await;
+    let second = app.make_task("Second", None).await;
+    app.conn
+        .execute("UPDATE tasks SET position = 7 WHERE id = ?1", rusqlite::params![first])
+        .unwrap();
+    for id in [&first, &second] {
+        app.request("POST", &format!("/api/tasks/{id}/maybe"), Some(json!({"maybe": true})))
+            .await;
+    }
+    assert_eq!(app.titles("/api/tasks/maybe").await, vec!["First", "Second"]);
+}
+
+#[tokio::test]
 async fn reorder_persists_maybe_list_order() {
     let app = test_app();
     let a = app.make_task("A", None).await;

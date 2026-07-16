@@ -588,9 +588,10 @@ struct MaybeBody {
 }
 
 /// Park a task on the "Maybe" list: an idea to review manually, with no date
-/// attached. Entering stamps maybe_since and clears any board placement /
-/// snooze / waiting state; leaving just clears the stamp (the task returns
-/// to the backlog).
+/// attached. Entering stamps maybe_since, appends the task at the bottom of
+/// the list (its old board/backlog position must not leak into the manually
+/// ordered list) and clears any board placement / snooze / waiting state;
+/// leaving just clears the stamp (the task returns to the backlog).
 async fn maybe_task(
     State(state): State<SharedState>,
     UrlPath(id): UrlPath<String>,
@@ -601,6 +602,8 @@ async fn maybe_task(
     if body.maybe {
         conn.execute(
             "UPDATE tasks SET maybe_since = ?1,
+                 position = (SELECT COALESCE(MAX(position), -1) + 1
+                             FROM tasks WHERE maybe_since IS NOT NULL),
                  due_date = NULL, defer_until = NULL, waiting_since = NULL
              WHERE id = ?2",
             params![db::now_utc(), id],
