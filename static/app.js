@@ -1118,9 +1118,12 @@ async function saveReorderedState() {
         let targetDueDate = null;
         
         if (existingTask) {
-            // Check if it was previously scheduled in the 5-day horizon
-            const wasScheduledInHorizon = existingTask.due_date && workdays.some(w => w.dateString === existingTask.due_date);
-            if (!wasScheduledInHorizon) {
+            // Check if it was previously shown on the board: either scheduled in
+            // the visible horizon, or overdue (rendered into the Today lane)
+            const wasShownOnBoard = existingTask.due_date &&
+                (existingTask.due_date < workdays[0].dateString ||
+                    workdays.some(w => w.dateString === existingTask.due_date));
+            if (!wasShownOnBoard) {
                 // If it was already in the backlog (either null or a future date), preserve its due date
                 targetDueDate = existingTask.due_date;
             }
