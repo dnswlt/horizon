@@ -1476,8 +1476,7 @@ textarea {
     align-items: center;
     gap: 0.5rem;
     padding: 0.75rem 1rem;
-    border-bottom: 1px solid var(--border-color);
-    background: rgba(30, 41, 59, 0.35);
+    background: var(--card-bg-hover);
 }
 
 .context-card-title {
