@@ -15,16 +15,19 @@ import {
     extractContexts,
     groupByContext,
     deriveTaskState,
-} from './core.js?v=64';
+} from './core.js?v=65';
 
 // Per-device view state lives in localStorage (see AGENTS.md); all keys use
 // the 'horizon-' prefix.
 const SHOW_COMPLETED_KEY = 'horizon-show-completed';
+const SHOW_SCHEDULED_KEY = 'horizon-show-scheduled';
 
 // App State
 let tasks = [];
 let workdays = [];
 let showCompleted = localStorage.getItem(SHOW_COMPLETED_KEY) === 'true';
+// Whether the backlog shows tasks scheduled beyond the visible horizon (default on)
+let showScheduled = localStorage.getItem(SHOW_SCHEDULED_KEY) !== 'false';
 
 // DOM Elements
 const headerTitle = document.getElementById('header-title');
@@ -75,7 +78,8 @@ const deletedEmptyMsg = document.getElementById('deleted-empty-msg');
 const deletedSection = document.querySelector('.deleted-section');
 const deletedToggle = document.getElementById('deleted-toggle');
 const deletedListContainer = document.getElementById('deleted-list-container');
-const toggleCompletedBtn = document.getElementById('toggle-completed-btn');
+const toggleCompletedSwitch = document.getElementById('toggle-completed');
+const toggleScheduledSwitch = document.getElementById('toggle-scheduled');
 
 // Maybe Elements
 const tabMaybe = document.getElementById('tab-maybe');
@@ -181,9 +185,8 @@ document.addEventListener('DOMContentLoaded', () => {
     rebuildContextColorMap();
 
     // Set up toggle initial state
-    if (showCompleted) {
-        toggleCompletedBtn.classList.add('active');
-    }
+    toggleCompletedSwitch.checked = showCompleted;
+    toggleScheduledSwitch.checked = showScheduled;
 
     fetchContexts();
     fetchTasks();
@@ -373,7 +376,8 @@ function renderTasks() {
                 grouped[task.due_date].push(task);
             } else if (task.due_date < todayDateString) {
                 grouped[todayDateString].push(task);
-            } else {
+            } else if (showScheduled) {
+                // Dated beyond the visible horizon: backlog, unless hidden
                 grouped['backlog'].push(task);
             }
         } else {
@@ -1442,24 +1446,37 @@ async function completeTaskFromModal() {
 }
 
 // Keyboard Shortcuts
-// key → { label, run }. The help popup is generated from this registry, so
-// adding a shortcut here also documents it. Modal-scoped keys (ESC) live in
-// the keydown handler in setupEventListeners, not here.
+// key → { label, section, run }. The help popup is generated from this
+// registry, so adding a shortcut here also documents it; rows are grouped
+// under their `section` heading in registry order. Modal-scoped keys (ESC)
+// live in the keydown handler in setupEventListeners, not here.
 const SHORTCUTS = {
-    'n': { label: 'New task',            run: () => openModal() },
-    '/': { label: 'Search',              run: () => switchTab('search') },
-    'h': { label: 'Horizon board',       run: () => scrollToBoard() },
-    'b': { label: 'Backlog',             run: () => scrollToBacklog() },
+    'n': { label: 'New task',            section: 'General',  run: () => openModal() },
+    '/': { label: 'Search',              section: 'General',  run: () => switchTab('search') },
+    '?': { label: 'Toggle this help',    section: 'General',  run: () => toggleShortcutHelp() },
+    'h': { label: 'Horizon board',       section: 'Navigate', run: () => scrollToBoard() },
+    'b': { label: 'Backlog',             section: 'Navigate', run: () => scrollToBacklog() },
+    'm': { label: 'Maybe',               section: 'Navigate', run: () => switchTab('maybe') },
+    'a': { label: 'Archive',             section: 'Navigate', run: () => switchTab('archive') },
+    'c': { label: 'Contexts',            section: 'Navigate', run: () => switchTab('contexts') },
     // One help row covers all three lane-count keys ('4'/'5' carry no label,
     // so renderShortcutHelp skips them and '3' documents the group as "3-5").
-    '3': { label: 'Days on the board',   keyLabel: '3-5', run: () => setLaneCount(3) },
+    '3': { label: 'Days on the board',   section: 'Board',    keyLabel: '3-5', run: () => setLaneCount(3) },
     '4': { run: () => setLaneCount(4) },
     '5': { run: () => setLaneCount(5) },
-    'm': { label: 'Maybe',               run: () => switchTab('maybe') },
-    'a': { label: 'Archive',             run: () => switchTab('archive') },
-    'c': { label: 'Contexts',            run: () => switchTab('contexts') },
-    '?': { label: 'Toggle this help',    run: () => toggleShortcutHelp() },
+    's': { label: 'Show scheduled',      section: 'Board',    run: () => setShowScheduled(!showScheduled) },
 };
+
+// Single code path for the Show Scheduled setting: keeps the menu switch,
+// the persisted state, and the board in sync whether the change came from
+// the switch itself or the keyboard shortcut.
+function setShowScheduled(value) {
+    showScheduled = value;
+    localStorage.setItem(SHOW_SCHEDULED_KEY, showScheduled);
+    toggleScheduledSwitch.checked = showScheduled;
+    renderTasks();
+}
+
 
 // Switch to the Horizon board and jump back to the top of the page, matching
 // the other tabs (e.g. returning from the Backlog).
@@ -1490,14 +1507,25 @@ function toggleShortcutHelp(force) {
 }
 
 function renderShortcutHelp() {
-    shortcutsList.innerHTML = Object.entries(SHORTCUTS)
-        .filter(([, { label }]) => label) // unlabelled keys ride on another row
-        .map(([key, { label, keyLabel }]) =>
-            `<div class="shortcut-row">
-                <kbd>${escapeHTML(keyLabel || key)}</kbd>
-                <span>${escapeHTML(label)}</span>
-            </div>`
-        ).join('');
+    // Group labelled shortcuts by section, in registry order
+    const sections = new Map();
+    for (const [key, { label, keyLabel, section }] of Object.entries(SHORTCUTS)) {
+        if (!label) continue; // unlabelled keys ride on another row
+        if (!sections.has(section)) sections.set(section, []);
+        sections.get(section).push({ key: keyLabel || key, label });
+    }
+
+    shortcutsList.innerHTML = [...sections.entries()].map(([name, rows]) =>
+        `<section class="shortcut-section">
+            <h4>${escapeHTML(name)}</h4>
+            ${rows.map(({ key, label }) =>
+                `<div class="shortcut-row">
+                    <kbd>${escapeHTML(key)}</kbd>
+                    <span>${escapeHTML(label)}</span>
+                </div>`
+            ).join('')}
+        </section>`
+    ).join('');
 }
 
 // Setup event listeners
@@ -1606,16 +1634,16 @@ function setupEventListeners() {
     // Synchronize custom date picker manual input changes
     taskDateSelect.addEventListener('input', updateQuickDateActiveHighlight);
 
-    // Toggle completed state button click
-    toggleCompletedBtn.addEventListener('click', () => {
-        showCompleted = !showCompleted;
+    // Show Completed toggle switch
+    toggleCompletedSwitch.addEventListener('change', () => {
+        showCompleted = toggleCompletedSwitch.checked;
         localStorage.setItem(SHOW_COMPLETED_KEY, showCompleted);
-        if (showCompleted) {
-            toggleCompletedBtn.classList.add('active');
-        } else {
-            toggleCompletedBtn.classList.remove('active');
-        }
         renderTasks();
+    });
+
+    // Show Scheduled toggle switch (dated tasks in the backlog)
+    toggleScheduledSwitch.addEventListener('change', () => {
+        setShowScheduled(toggleScheduledSwitch.checked);
     });
 
     // Toggle settings dropdown

@@ -4,13 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Horizon</title>
-    <link rel="icon" type="image/png" href="/static/favicon.png?v=64">
-    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v=64">
-    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=64">
+    <link rel="icon" type="image/png" href="/static/favicon.png?v=65">
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg?v=65">
+    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png?v=65">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css?v=64">
+    <link rel="stylesheet" href="/static/style.css?v=65">
 </head>
 <body>
     <!-- App Container -->
@@ -94,13 +94,24 @@
                         </svg>
                     </button>
                     <div class="settings-dropdown-menu" id="settings-dropdown">
-                        <button id="toggle-completed-btn" class="btn btn-secondary">
+                        <label class="settings-toggle-row" for="toggle-completed" title="Show completed tasks in the board's day columns">
                             <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round">
                                 <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
                                 <circle cx="12" cy="12" r="3"></circle>
                             </svg>
                             <span>Show Completed</span>
-                        </button>
+                            <input type="checkbox" id="toggle-completed" class="toggle-switch">
+                        </label>
+                        <label class="settings-toggle-row" for="toggle-scheduled" title="Show tasks in the Backlog that are scheduled beyond the board's last day">
+                            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                                <line x1="16" y1="2" x2="16" y2="6"></line>
+                                <line x1="8" y1="2" x2="8" y2="6"></line>
+                                <line x1="3" y1="10" x2="21" y2="10"></line>
+                            </svg>
+                            <span>Show Scheduled</span>
+                            <input type="checkbox" id="toggle-scheduled" class="toggle-switch">
+                        </label>
                         <div class="color-labels-settings">
                             <h3>Contexts</h3>
                             <p class="settings-hint">Tag a task with <code>@keyword</code> in its title or description to paint it a color.</p>
@@ -439,6 +450,6 @@
     <!-- Toast Notifications -->
     <div id="toast-container"></div>
 
-    <script type="module" src="/static/app.js?v=64"></script>
+    <script type="module" src="/static/app.js?v=65"></script>
 </body>
 </html>

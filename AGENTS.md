@@ -11,38 +11,31 @@ like Jira and Trello tiring to use.
 
 ## Product principles (read before changing UX)
 
-- **The horizon is the core metaphor.** The Board shows five lanes — the next
-  five *workdays* (weekends skipped) — plus a Backlog for anything undated.
-  Tasks flow right-to-left toward "today." Keep this front and center; don't
-  bury it behind views or filters.
-- **Snooze gets what you can't act on yet out of the way.** So the horizon only
-  ever shows what's actually actionable now. A task with a future `defer_until`
-  leaves the board and waits in the Snoozed strip; on that date it resurfaces
-  (marked "Snooze ended"). Un-snoozing returns it immediately.
-- **Maybe is the parking lot for someday-ideas.** For the fuzzy "I'd like to
-  do this at some point" ideas that fit neither the Backlog (too committed) nor
-  Snooze (no date to pop back on). Maybe tasks live on their own tab as an
-  archive-style list (drag rows to reorder via `position`; newly parked tasks
-  append at the bottom) and only return via an explicit decision: un-maybe
-  (back to Backlog) or scheduling a date in the edit dialog.
-- **Single user, no bloat.** No accounts, no auth, no teams, no permissions.
-  No task-type hierarchies, epics, statuses-of-statuses, or custom fields.
-  If a feature smells like enterprise project management, it probably doesn't
+- **The horizon is the core metaphor.** The Board = the next five *workdays*
+  (weekends skipped) plus a Backlog for undated tasks; tasks flow toward
+  "today." Don't bury it behind views or filters.
+- **Snooze hides the not-yet-actionable.** A future `defer_until` moves a task
+  off the board into the Snoozed strip; it resurfaces on that date (marked
+  "Snooze ended"). Un-snoozing returns it immediately.
+- **Maybe parks someday-ideas** that fit neither Backlog (too committed) nor
+  Snooze (no date). Own tab, archive-style list (drag to reorder via
+  `position`; new entries append at the bottom); leaves only by explicit
+  un-maybe (→ Backlog) or scheduling a date.
+- **Single user, no bloat.** No accounts, auth, teams, permissions, task-type
+  hierarchies, epics, or custom fields. Enterprise-PM-flavored features don't
   belong here.
-- **Lightweight and high-performance.** No SPA framework, no build step, no
-  bundler. Vanilla JS + a small Rust backend compiled into a single exe. Keep
-  it that way unless there is a compelling reason not to — new dependencies
-  are a cost, not a default.
-- **Fast to act.** Drag-and-drop scheduling, inline edit/delete, quick-date
-  buttons, keyboard-friendly modals. Every common action should be one or two
-  clicks.
-- **Nothing is truly lost.** Completing archives; deleting is a soft delete
-  (Trash). Both are recoverable. Prefer reversible actions.
-- **Clean, professional UI and excellent UX reign supreme.** Don't descend
-  into fiddle mode: no pixel-shaving, no piling up density/spacing micro-tweaks,
-  no cleverness that trades polish for cramming. When something feels off,
-  find the one principled fix (or leave it alone) rather than iterating on
-  cosmetic knobs.
+- **No framework, no build step, no bundler.** Vanilla JS + a small Rust
+  backend, one exe. New dependencies are a cost, not a default.
+- **Fast to act.** Every common action is one or two clicks (drag-and-drop,
+  inline edit, quick dates, keyboard-friendly modals).
+- **Nothing is truly lost.** Completing archives; deleting is soft (Trash).
+  Prefer reversible actions.
+- **Polish over fiddling.** Clean, professional UI. When something feels off,
+  make one principled fix (or leave it alone) — no pixel-shaving or
+  density/spacing micro-tweak spirals.
+- **Quiet feedback — this is a pro tool.** No toasts for small, self-evident
+  actions (view toggles, filters); the visible change is the feedback. Toasts
+  are for consequential or non-obvious outcomes (task completed/moved, errors).
 
 ## Stack & layout
 

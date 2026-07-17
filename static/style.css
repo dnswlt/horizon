@@ -987,18 +987,44 @@ textarea {
     margin-right: auto;
 }
 
-/* Keyboard Shortcuts Help */
+/* Keyboard Shortcuts Help: sections ("General", "Navigate", ...) packed into
+   two columns to keep the dialog compact. Multi-column (masonry-style) layout
+   rather than grid, so sections stack without row-height gaps (same idiom as
+   .contexts-grid). */
 .shortcuts-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
+    columns: 2;
+    column-gap: 2rem;
+}
+
+@media (max-width: 480px) {
+    .shortcuts-list {
+        columns: 1;
+    }
+}
+
+.shortcut-section {
+    break-inside: avoid;
+    margin-bottom: 1rem;
+}
+
+.shortcut-section:last-child {
+    margin-bottom: 0;
+}
+
+.shortcut-section h4 {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    font-weight: 600;
+    margin: 0 0 0.35rem 0;
 }
 
 .shortcut-row {
     display: flex;
     align-items: center;
-    gap: 1rem;
-    padding: 0.4rem 0;
+    gap: 0.75rem;
+    padding: 0.2rem 0;
 }
 
 .shortcut-row kbd {
@@ -1018,6 +1044,7 @@ textarea {
 }
 
 .shortcut-row span {
+    font-size: 0.85rem;
     color: var(--text-secondary);
 }
 
@@ -1573,9 +1600,68 @@ textarea {
     display: flex;
 }
 
-.settings-dropdown-menu #toggle-completed-btn {
-    width: 100%;
-    justify-content: center;
+/* A menu row that toggles a setting: icon + label on the left, switch on the
+   right. The whole row is a <label>, so clicking anywhere flips the switch. */
+.settings-toggle-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.settings-toggle-row:hover {
+    color: var(--text-primary);
+}
+
+.settings-toggle-row svg {
+    flex-shrink: 0;
+}
+
+.settings-toggle-row span {
+    flex-grow: 1;
+}
+
+.toggle-switch {
+    appearance: none;
+    flex-shrink: 0;
+    width: 36px;
+    height: 20px;
+    border-radius: 999px;
+    border: 1px solid var(--border-color);
+    background: rgba(30, 41, 59, 0.9);
+    position: relative;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.toggle-switch::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--text-secondary);
+    transition: all var(--transition-fast);
+}
+
+.toggle-switch:checked {
+    background: var(--primary);
+    border-color: var(--primary);
+}
+
+.toggle-switch:checked::after {
+    transform: translateX(16px);
+    background: #fff;
+}
+
+.toggle-switch:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
 }
 
 .color-labels-settings h3 {
