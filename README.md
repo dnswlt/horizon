@@ -27,7 +27,7 @@ A task lives in one of a handful of places:
 Horizon is deliberately minimal: one person, one board, one SQLite file
 (`tasks.db`). There are no accounts, teams, epics, statuses, or custom
 fields. Interactions are optimized for speed: drag-and-drop scheduling,
-inline edits, quick-date buttons, keyboard-friendly modals.
+quick-date buttons, single-key shortcuts, keyboard-friendly modals.
 
 ## Getting started
 
