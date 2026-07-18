@@ -17,8 +17,8 @@ A task lives in one of a handful of places:
 - **Snoozed** — tasks that are currently not actionable. Snoozed tasks
   resurface in the backlog after a configurable duration.
 - **Waiting** — tasks that are waiting for a response from someone else.
-- **Maybe** — someday ideas with no date and no commitment; they only move
-  onto the board when you pull them in.
+- **Maybe** — the dump for things you haven't committed to and might never
+  do; they only come back into view when you pull them in.
 - **Deleted** — tasks that you decided not to do at all.
 - **Archive** — holds Done tasks.
 
