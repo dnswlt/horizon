@@ -4,6 +4,8 @@ A lightweight, single-user task planner. Upcoming tasks live on the
 **horizon** — five lanes for the next five workdays — plus a backlog for
 everything undated.
 
+<img width="1600" height="876" alt="demo-1600w" src="https://github.com/user-attachments/assets/03d605c7-8b62-4b4e-8da0-aa77024d5132" />
+
 ## Windows: double-click app
 
 Horizon is one self-contained exe, nothing else to install. Pick a folder
