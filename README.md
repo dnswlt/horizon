@@ -1,12 +1,37 @@
 # Horizon
 
 A lightweight, single-user task planner. Upcoming tasks live on the
-**horizon** — five lanes for the next five workdays — plus a backlog for
-everything undated.
+**horizon** — a lane for each of the next 3–5 workdays — plus a backlog
+for everything undated or due later.
 
 <img width="1600" height="876" alt="demo-1600w" src="https://github.com/user-attachments/assets/03d605c7-8b62-4b4e-8da0-aa77024d5132" />
 
-## Windows: double-click app
+## Concepts
+
+A task lives in one of a handful of places:
+
+- **Horizon** — lanes holding the cards of the tasks planned for the next
+  3–5 workdays.
+- **Backlog** — unscheduled tasks and tasks with a due date farther in the
+  future.
+- **Snoozed** — tasks that are currently not actionable. Snoozed tasks
+  resurface in the backlog after a configurable duration.
+- **Waiting** — tasks that are waiting for a response from someone else.
+- **Maybe** — someday ideas with no date and no commitment; they only move
+  onto the board when you pull them in.
+- **Deleted** — tasks that you decided not to do at all.
+- **Archive** — holds Done tasks.
+
+![Horizon task state machine](docs/state_machine.svg)
+
+Horizon is deliberately minimal: one person, one board, one SQLite file
+(`tasks.db`). There are no accounts, teams, epics, statuses, or custom
+fields. Interactions are optimized for speed: drag-and-drop scheduling,
+inline edits, quick-date buttons, keyboard-friendly modals.
+
+## Getting started
+
+### Windows: double-click app
 
 Horizon is one self-contained exe, nothing else to install. Pick a folder
 for it — that folder is also where your tasks will live, in a `tasks.db`
@@ -35,7 +60,7 @@ Notes:
   replacing the exe); `tasks.db` stays where it is. Databases created by
   older (Python-based) versions are upgraded automatically on first launch.
 
-## Browser mode
+### Browser mode
 
 The same binary is an ordinary local web server:
 
