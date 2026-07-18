@@ -18,7 +18,9 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
-      - uses: Swatinem/rust-cache@v2
+      # No cache step: this workflow only runs on tag refs, which can never
+      # restore caches from other tags (GitHub scopes caches per ref), so a
+      # cache here would only ever be written, never read.
 
       - name: Run tests
         run: cargo test --release
