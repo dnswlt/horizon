@@ -10,3 +10,6 @@ horizon.log
 /dist
 __pycache__/
 venv/
+*.bak
+screenshots/
+docs/demo-*.webp
