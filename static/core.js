@@ -92,13 +92,66 @@ export function extractDescLinks(text) {
     return found.map(({ url, label }) => ({ url, label }));
 }
 
-// Short display label for a link chip: just the host, so
-// "https://www.example.com/a/b/c" shows as "www.example.com". Falls back to the
-// full string if it doesn't parse as a URL (extractLinks only yields http(s),
-// so that's a belt-and-braces guard).
+// Cut a label down to ~max chars, preferring a word boundary, with a trailing
+// ellipsis. A boundary too far left would waste most of the budget on "…", so
+// below max-15 we hard-cut instead.
+function truncateLabel(s, max = 35) {
+    if (s.length <= max) return s;
+    let cut = s.lastIndexOf(' ', max);
+    if (cut < max - 15) cut = max;
+    return s.slice(0, cut).trimEnd() + '…';
+}
+
+// Decode a Confluence title slug: "+" separates words, the rest is
+// percent-encoded. Malformed escapes keep the raw (de-plussed) text.
+function decodeConfluenceSlug(slug) {
+    const plussed = slug.replace(/\+/g, ' ');
+    try {
+        return decodeURIComponent(plussed);
+    } catch {
+        return plussed;
+    }
+}
+
+// Well-known URL shapes that carry a better chip label than the hostname.
+// These match on path structure (not specific domains) so self-hosted
+// instances work too; the GitHub rule is the exception since "/owner/repo/
+// pull/N" is too generic a path to claim on arbitrary hosts.
+function smartLinkLabel(u) {
+    // Jira issue: .../browse/KEY-123 on any host -> "KEY-123".
+    let m = u.pathname.match(/\/browse\/([A-Z][A-Z0-9_]*-\d+)\/?$/);
+    if (m) return m[1];
+    // Confluence page: /spaces/KEY/pages/12345/Title+Slug (cloud instances
+    // add a /wiki prefix) or legacy /display/KEY/Title+Slug, on any host.
+    // The slug can be stale after a rename (Confluence resolves by page ID),
+    // but it beats the hostname. Without a title slug, the space key stands in.
+    m = u.pathname.match(/\/spaces\/([^/]+)\/pages\/\d+(?:\/([^/]+))?\/?$/)
+        || u.pathname.match(/\/display\/([^/]+)\/([^/]+)\/?$/);
+    if (m) {
+        return m[2] ? truncateLabel(decodeConfluenceSlug(m[2])) : m[1];
+    }
+    // GitLab MR or issue: the "/-/" path marker is distinctive enough for any
+    // host -> "repo!123" / "repo#123" (GitLab's own reference syntax).
+    m = u.pathname.match(/\/([^/]+)\/-\/(merge_requests|issues)\/(\d+)(?:\/|$)/);
+    if (m) return m[1] + (m[2] === 'issues' ? '#' : '!') + m[3];
+    // GitHub PR or issue on github.com or a "github.*" enterprise host
+    // -> "repo#123".
+    if (u.hostname === 'github.com' || u.hostname.startsWith('github.')) {
+        m = u.pathname.match(/^\/[^/]+\/([^/]+)\/(?:pull|issues)\/(\d+)(?:\/|$)/);
+        if (m) return `${m[1]}#${m[2]}`;
+    }
+    return null;
+}
+
+// Short display label for a link chip. Well-known URL shapes get a specific
+// label (e.g. a Jira issue key, see smartLinkLabel); anything else shows just
+// the host, so "https://www.example.com/a/b/c" becomes "www.example.com".
+// Falls back to the full string if it doesn't parse as a URL (extractLinks
+// only yields http(s), so that's a belt-and-braces guard).
 export function formatLinkLabel(url) {
     try {
-        return new URL(url).hostname;
+        const u = new URL(url);
+        return smartLinkLabel(u) || u.hostname;
     } catch {
         return url;
     }

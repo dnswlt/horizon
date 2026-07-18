@@ -202,6 +202,58 @@ test('formatLinkLabel reduces a URL to its host', () => {
     assert.equal(formatLinkLabel('not a url'), 'not a url');
 });
 
+test('formatLinkLabel uses the issue key for Jira browse URLs on any host', () => {
+    assert.equal(formatLinkLabel('https://flow.sbb.ch/browse/TRSRISK-612'), 'TRSRISK-612');
+    assert.equal(formatLinkLabel('https://mycorp.atlassian.net/browse/AB1-9/'), 'AB1-9');
+    // Query params don't get in the way (pathname only).
+    assert.equal(formatLinkLabel('https://jira.example.com/browse/X-1?focusedId=2'), 'X-1');
+    // Lowercase or keyless paths are not Jira issues: plain host label.
+    assert.equal(formatLinkLabel('https://flow.sbb.ch/browse/trsrisk-612'), 'flow.sbb.ch');
+    assert.equal(formatLinkLabel('https://flow.sbb.ch/browse/TRSRISK-612/extra'), 'flow.sbb.ch');
+});
+
+test('formatLinkLabel uses the decoded page title for Confluence URLs', () => {
+    assert.equal(
+        formatLinkLabel('https://confluence.sbb.ch/spaces/TRSST/pages/2763653156/Rollen+und+Verantwortlichkeiten'),
+        'Rollen und Verantwortlichkeiten',
+    );
+    // Cloud instances have the same shape under a /wiki prefix; slugs are
+    // percent-encoded on top of the "+" word separators.
+    assert.equal(
+        formatLinkLabel('https://mycorp.atlassian.net/wiki/spaces/AB/pages/123/R%C3%BCckblick+2025'),
+        'Rückblick 2025',
+    );
+    // Legacy /display/KEY/Title links.
+    assert.equal(
+        formatLinkLabel('https://confluence.sbb.ch/display/TRSST/Rollen+und+Verantwortlichkeiten'),
+        'Rollen und Verantwortlichkeiten',
+    );
+    // Long titles get cut at a word boundary with an ellipsis.
+    assert.equal(
+        formatLinkLabel('https://confluence.sbb.ch/spaces/TRSST/pages/99/Betriebskonzept+Rollen+und+Verantwortlichkeiten'),
+        'Betriebskonzept Rollen und…',
+    );
+    // No title slug in the URL: the space key stands in.
+    assert.equal(
+        formatLinkLabel('https://confluence.sbb.ch/spaces/TRSST/pages/2763653156'),
+        'TRSST',
+    );
+});
+
+test('formatLinkLabel uses reference syntax for GitHub and GitLab URLs', () => {
+    assert.equal(formatLinkLabel('https://github.com/dnswlt/horizon/pull/42'), 'horizon#42');
+    assert.equal(formatLinkLabel('https://github.com/dnswlt/horizon/issues/7'), 'horizon#7');
+    // Sub-pages of a PR (files, commits) still label as the PR.
+    assert.equal(formatLinkLabel('https://github.com/dnswlt/horizon/pull/42/files'), 'horizon#42');
+    // GitHub Enterprise hosts named github.* count; other hosts don't claim
+    // the generic /owner/repo/pull/N shape.
+    assert.equal(formatLinkLabel('https://github.mycorp.com/team/repo/pull/3'), 'repo#3');
+    assert.equal(formatLinkLabel('https://example.com/team/repo/pull/3'), 'example.com');
+    // GitLab's /-/ marker works on any host.
+    assert.equal(formatLinkLabel('https://gitlab.com/grp/proj/-/merge_requests/15'), 'proj!15');
+    assert.equal(formatLinkLabel('https://git.mycorp.ch/grp/proj/-/issues/8'), 'proj#8');
+});
+
 test('parseDateToken anchors partial dates to the start of the period', () => {
     assert.equal(parseDateToken('2025'), '2025-01-01');
     assert.equal(parseDateToken('2025-07'), '2025-07-01');

@@ -1749,7 +1749,8 @@ textarea {
     display: flex;
     align-items: center;
     gap: 0.45rem;
-    max-width: 100%;
+    /* Cap so a long (user-typed) label ellipsizes instead of eating a row. */
+    max-width: min(20rem, 100%);
     padding: 0.3rem 0.55rem;
     font-size: 0.8rem;
     color: var(--primary);
